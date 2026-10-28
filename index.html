@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quran Grid World — Camera → 3D Map → Ayah Hunt</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#131a26; --panel2:#1a2333; --line:#263349;
+    --text:#dbe4f5; --muted:#8fa0bd; --accent:#4f8cff; --gold:#e6b455; --green:#43c78a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI', system-ui, sans-serif;}
+  #scene{position:absolute; inset:0;}
+  #scene canvas{display:block;}
+
+  /* HUD */
+  #hud-top{position:absolute; top:14px; left:16px; z-index:5; pointer-events:none;}
+  #hud-top h1{font-size:16px; letter-spacing:.5px; font-weight:600;}
+  #hud-top .sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  #score-hud{position:absolute; top:14px; right:16px; z-index:5; display:none;
+    background:rgba(19,26,38,.85); border:1px solid var(--line); border-radius:10px;
+    padding:10px 14px; font-size:13px; line-height:1.5;}
+  #score-hud b{color:var(--gold); font-size:16px;}
+  #hint{position:absolute; bottom:14px; left:16px; z-index:5; font-size:12px;
+    color:var(--muted); background:rgba(11,15,23,.6); padding:6px 10px; border-radius:8px;}
+
+  /* Side panel */
+  #panel{position:absolute; top:0; right:0; bottom:0; width:330px; z-index:10;
+    background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column;}
+  #tabs{display:flex; border-bottom:1px solid var(--line);}
+  #tabs button{flex:1; padding:12px 0; background:none; border:none; color:var(--muted);
+    font-size:13px; cursor:pointer; border-bottom:2px solid transparent;}
+  #tabs button.active{color:var(--text); border-bottom-color:var(--accent);}
+  .tab-body{flex:1; overflow-y:auto; padding:16px;}
+  .tab-body section{margin-bottom:22px;}
+  .tab-body h3{font-size:12px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--muted); margin-bottom:10px;}
+  .row{display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;}
+  button.btn{background:var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:9px 12px; font-size:13px; cursor:pointer; flex:1;}
+  button.btn:hover{filter:brightness(1.15);}
+  button.btn.ghost{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  button.btn.gold{background:var(--gold); color:#20170a;}
+  button.btn.danger{background:#c05555;}
+  button.btn.small{flex:0; padding:6px 10px; font-size:12px;}
+  input[type=text], input[type=number]{
+    background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:9px 10px; font-size:13px; width:100%;}
+  input[type=range]{width:100%; accent-color:var(--accent);}
+  .info-box{background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; font-size:12.5px; color:var(--muted); margin-bottom:12px; line-height:1.5;}
+  .info-box b{color:var(--text);}
+  .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line);
+    border-radius:20px; padding:5px 11px; font-size:12px; cursor:pointer; margin:0 6px 6px 0;}
+  .pill:hover{border-color:var(--gold);}
+  label{font-size:12px; color:var(--muted); display:block; margin:6px 0 4px;}
+
+  /* Modals */
+  .modal-backdrop{position:fixed; inset:0; background:rgba(4,7,12,.75); z-index:50;
+    display:none; align-items:center; justify-content:center;}
+  .modal-backdrop.open{display:flex;}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:22px; width:min(560px, 92vw); max-height:88vh; overflow-y:auto;}
+  .modal h2{font-size:15px; margin-bottom:12px;}
+  #cam-video{width:100%; border-radius:10px; background:#000; min-height:200px;}
+  #ayah-arabic{font-size:26px; line-height:2.1; text-align:right; direction:rtl;
+    font-family:'Amiri','Scheherazade New','Traditional Arabic',serif; margin:14px 0;
+    color:#f3e6c8;}
+  #ayah-translation{font-size:14px; color:var(--text); line-height:1.6; font-style:italic;}
+  #ayah-modal a{color:var(--accent); font-size:13px;}
+  .ayah-actions{display:flex; gap:8px; margin-top:16px;}
+
+  #toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:10px 18px; font-size:13px; z-index:99;
+    opacity:0; transition:opacity .3s; pointer-events:none; max-width:80vw;}
+  #toast.show{opacity:1;}
+
+  #win-overlay{position:fixed; inset:0; z-index:80; display:none;
+    align-items:center; justify-content:center; background:rgba(4,7,12,.85);}
+  #win-overlay.open{display:flex;}
+  .win-card{background:var(--panel); border:1px solid var(--gold); border-radius:16px;
+    padding:34px; text-align:center; width:min(420px,90vw);}
+  .win-card h2{color:var(--gold); font-size:22px; margin-bottom:10px;}
+  .win-card p{color:var(--muted); font-size:14px; margin-bottom:18px;}
+  #panel-toggle{position:absolute; top:60px; right:340px; z-index:11; display:none;}
+  #panel.collapsed{display:none;}
+  #panel.collapsed + #panel-toggle{display:block;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<div id="scene"></div>
+
+<div id="hud-top">
+  <h1>🌍 Quran Grid World</h1>
+  <div class="sub">World version <span id="ver">1</span> · <span id="cell-count">0</span> cells built · <span id="ayah-count">0</span> ayahs placed</div>
+</div>
+
+<div id="score-hud">
+  Score: <b id="score">0</b><br>
+  Ayahs found: <span id="found">0</span>/<span id="total">0</span><br>
+  <span style="color:var(--muted)">Move: WASD / arrow keys</span>
+</div>
+
+<div id="hint">🖱 Drag to rotate · scroll to zoom · click a cell to select</div>
+
+<div id="panel">
+  <div id="tabs">
+    <button class="active" data-tab="build">🔨 Build</button>
+    <button data-tab="play">🎮 Play</button>
+    <button data-tab="world">🗄 World</button>
+  </div>
+
+  <!-- BUILD TAB -->
+  <div class="tab-body" id="tab-build">
+    <div class="info-box">
+      Click a grid cell (or use the 🔨 tools below) to build your world from <b>real photos</b>.
+      Each photo fills one grid cell — scan your street, room, park… cell by cell.
+    </div>
+
+    <section>
+      <h3>Selected cell</h3>
+      <div class="info-box" id="selected-info">No cell selected — click one on the map.</div>
+      <div class="row">
+        <button class="btn" id="btn-cam">📷 Capture from camera</button>
+      </div>
+      <div class="row">
+        <button class="btn ghost" id="btn-upload">🖼 Upload photo instead</button>
+        <input type="file" id="file-input" accept="image/*" hidden>
+      </div>
+      <label>Height (cell elevation): <span id="h-val">0.4</span></label>
+      <input type="range" id="height-slider" min="0" max="2" step="0.1" value="0.4">
+      <div class="row">
+        <button class="btn danger small" id="btn-clear">🗑 Clear cell</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>Attach an ayah link</h3>
+      <div class="row" style="align-items:center">
+        <input type="number" id="surah" placeholder="Surah (2)" min="1" max="114" style="flex:1">
+        <span style="color:var(--muted)">:</span>
+        <input type="number" id="ayah" placeholder="Ayah (255)" min="1" style="flex:1">
+      </div>
+      <div class="row">
+        <button class="btn gold" id="btn-attach">✨ Attach ayah to cell</button>
+      </div>
+      <label>Quick picks:</label>
+      <div>
+        <span class="pill" data-s="1" data-a="1">Al-Fatihah 1:1</span>
+        <span class="pill" data-s="2" data-a="255">Ayat al-Kursi 2:255</span>
+        <span class="pill" data-s="94" data-a="6">Ash-Sharh 94:6</span>
+        <span class="pill" data-s="55" data-a="13">Ar-Rahman 55:13</span>
+      </div>
+      <div class="info-box" id="cell-ayah-info" style="margin-top:12px"></div>
+    </section>
+  </div>
+
+  <!-- PLAY TAB -->
+  <div class="tab-body" id="tab-play" style="display:none">
+    <div class="info-box">
+      Explore the world you built! Every new cell you step on earns points.
+      Cells with a <b>golden gem</b> hold an ayah — reach it to reveal the verse,
+      its translation and audio.
+    </div>
+    <section>
+      <h3>Exploration</h3>
+      <div class="row">
+        <button class="btn" id="btn-play">▶ Start exploring</button>
+        <button class="btn ghost" id="btn-stop">⏸ End</button>
+      </div>
+      <div class="info-box" id="play-status">Game not running.</div>
+    </section>
+    <section>
+      <h3>How the loop works</h3>
+      <div class="info-box">
+        1️⃣ Build → capture new photos & ayahs<br>
+        2️⃣ Publish update (World tab) → resets exploration<br>
+        3️⃣ Play → re-explore the changed world<br>
+        4️⃣ Repeat — the world is different every update.
+      </div>
+    </section>
+  </div>
+
+  <!-- WORLD TAB -->
+  <div class="tab-body" id="tab-world" style="display:none">
+    <div class="info-box">
+      The world auto-saves in your browser. Publishing an update bumps the version,
+      keeps your photos & ayahs, and resets exploration so the game can be replayed
+      against the new world state.
+    </div>
+    <section>
+      <h3>Updates</h3>
+      <div class="row"><button class="btn gold" id="btn-publish">🚀 Publish update v<span id="next-ver">2</span></button></div>
+      <div class="info-box" id="world-info"></div>
+    </section>
+    <section>
+      <h3>Data</h3>
+      <div class="row"><button class="btn ghost" id="btn-export">⬇ Export world (JSON)</button></div>
+      <div class="row"><button class="btn ghost" id="btn-import">⬆ Import world</button></div>
+      <input type="file" id="import-input" accept=".json" hidden>
+      <div class="row"><button class="btn danger" id="btn-reset">⚠ Reset everything</button></div>
+    </section>
+  </div>
+</div>
+
+<!-- Camera modal -->
+<div class="modal-backdrop" id="cam-modal">
+  <div class="modal">
+    <h2>📷 Scan this cell with your camera</h2>
+    <video id="cam-video" autoplay playsinline></video>
+    <div class="ayah-actions">
+      <button class="btn" id="btn-capture">Capture cell</button>
+      <button class="btn ghost" id="btn-cam-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ayah modal -->
+<div class="modal-backdrop" id="ayah-modal">
+  <div class="modal">
+    <h2 id="ayah-ref">Ayah</h2>
+    <div id="ayah-arabic"></div>
+    <div id="ayah-translation"></div>
+    <a id="ayah-link" target="_blank" rel="noopener">Open on Quran.com ↗</a>
+    <div class="ayah-actions">
+      <button class="btn gold" id="btn-audio">🔊 Play recitation</button>
+      <button class="btn ghost" id="btn-close-ayah">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div id="win-overlay">
+  <div class="win-card">
+    <h2>🏆 All ayahs found!</h2>
+    <p id="win-text"></p>
+    <button class="btn" onclick="document.getElementById('win-overlay').classList.remove('open')">Continue</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   Quran Grid World — prototype
+   grid world -> cells built from camera photos -> ayah links -> exploration game
+   ============================================================ */
+const GRID = 12;              // 12x12 grid world
+const LS_KEY = 'quran-grid-world-v1';
+const $ = id => document.getElementById(id);
+
+/* ---------------- world state ---------------- */
+function defaultCell(){ return { photo:null, height:0, ayah:null, visited:false, found:false }; }
+function defaultWorld(){
+  const cells = [];
+  for(let i=0;i<GRID*GRID;i++) cells.push(defaultCell());
+  const w = { version:1, cells };
+  // small starter landscape so the grid isn't empty on first run
+  [[5,5],[6,5],[7,5],[7,6],[6,7],[5,7],[4,7]].forEach(([r,c],i)=>{
+    const cell = w.cells[r*GRID+c]; cell.height = 0.4 + (i%3)*0.2;
+  });
+  return w;
+}
+function loadWorld(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){
+      const w = JSON.parse(raw);
+      if(w && Array.isArray(w.cells) && w.cells.length === GRID*GRID) return w;
+    }
+  }catch(e){ console.warn('load failed', e); }
+  return defaultWorld();
+}
+let world = loadWorld();
+let saveTimer = null;
+function saveWorld(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(world)); }
+    catch(e){ toast('⚠ Could not save (storage full?). Use Export.'); }
+  }, 400);
+}
+
+/* ---------------- three.js setup ---------------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0f17);
+scene.fog = new THREE.Fog(0x0b0f17, 26, 70);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 300);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+$('scene').appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dirLight = new THREE.DirectionalLight(0xfff2dd, 0.9);
+dirLight.position.set(12, 24, 10);
+scene.add(dirLight);
+
+/* ground + grid lines */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(120,120),
+  new THREE.MeshStandardMaterial({ color:0x10151f, roughness:1 })
+);
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.02;
+ground.name='ground';
+scene.add(ground);
+scene.add(new THREE.GridHelper(GRID, GRID, 0x2c3a55, 0x1c2536));
+
+/* orbit camera (simple custom controls) */
+let camTheta = Math.PI*0.25, camPhi = Math.PI*0.32, camDist = 20;
+const camTarget = new THREE.Vector3(0, 0, 0);
+function updateCamera(){
+  camPhi = Math.max(0.18, Math.min(1.4, camPhi));
+  camDist = Math.max(7, Math.min(60, camDist));
+  camera.position.set(
+    camTarget.x + camDist*Math.sin(camPhi)*Math.cos(camTheta),
+    camTarget.y + camDist*Math.cos(camPhi),
+    camTarget.z + camDist*Math.sin(camPhi)*Math.sin(camTheta)
+  );
+  camera.lookAt(camTarget);
+}
+updateCamera();
+
+/* ---------------- world meshes ---------------- */
+const cellGroup = new THREE.Group(); scene.add(cellGroup);
+const gemGroup  = new THREE.Group(); scene.add(gemGroup);
+const textureCache = new Map();   // cellIndex -> THREE.Texture
+
+function cellXZ(i){
+  const row = Math.floor(i/GRID), col = i%GRID;
+  return { x: col - GRID/2 + 0.5, z: row - GRID/2 + 0.5 };
+}
+function cellHeight(i){ return world.cells[i].height || 0; }
+
+function getPhotoTexture(i){
+  if(!world.cells[i].photo) return null;
+  if(textureCache.has(i)) return textureCache.get(i);
+  const tex = new THREE.Texture();
+  tex.image = new Image();
+  tex.image.onload = ()=>{ tex.needsUpdate = true; };
+  tex.image.src = world.cells[i].photo;
+  textureCache.set(i, tex);
+  return tex;
+}
+
+function rebuildWorld(){
+  cellGroup.clear(); gemGroup.clear();
+  for(let i=0;i<GRID*GRID;i++){
+    const c = world.cells[i];
+    const {x,z} = cellXZ(i);
+    if(c.height > 0){
+      const h = c.height;
+      const sideMat = new THREE.MeshStandardMaterial({
+        color: c.photo ? 0x35425e : 0x2a3550, roughness:0.85 });
+      const topMat = c.photo && getPhotoTexture(i)
+        ? new THREE.MeshStandardMaterial({ map:getPhotoTexture(i), roughness:0.9 })
+        : new THREE.MeshStandardMaterial({ color:0x3a4a6d, roughness:0.9 });
+      const bottomMat = new THREE.MeshStandardMaterial({ color:0x1a2233 });
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(0.98, h, 0.98),
+        [sideMat, sideMat, topMat, bottomMat, sideMat, sideMat]
+      );
+      box.position.set(x, h/2, z);
+      cellGroup.add(box);
+    }
+    if(c.ayah){
+      const gem = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.14),
+        new THREE.MeshStandardMaterial({
+          color:0xe6b455, emissive:0x8a6420, metalness:0.6, roughness:0.3 })
+      );
+      gem.position.set(x, cellHeight(i)+0.45, z);
+      gem.userData.baseY = gem.position.y;
+      gemGroup.add(gem);
+    }
+  }
+  refreshHud();
+}
+
+/* selection highlight */
+const selBox = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001,1,1.001)),
+  new THREE.LineBasicMaterial({ color:0x4f8cff })
+);
+selBox.visible = false;
+scene.add(selBox);
+let selectedIndex = -1;
+function selectCell(i){
+  selectedIndex = i;
+  const {x,z} = cellXZ(i);
+  const h = Math.max(cellHeight(i), 0.02);
+  selBox.position.set(x, h/2, z);
+  selBox.scale.set(1, h, 1);
+  selBox.visible = true;
+  refreshBuildPanel();
+}
+
+/* ---------------- player (game) ---------------- */
+const player = new THREE.Group();
+const body = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.16,0.16,0.42,16),
+  new THREE.MeshStandardMaterial({ color:0x4f8cff, roughness:0.5 }));
+body.position.y = 0.21;
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.13,16,16),
+  new THREE.MeshStandardMaterial({ color:0xf0d9b5 }));
+head.position.y = 0.55;
+player.add(body, head);
+player.visible = false;
+scene.add(player);
+
+let playing = false, score = 0, playerCell = -1, moving = false, moveTarget = null;
+
+function startPlay(){
+  const ayahs = world.cells.filter(c=>c.ayah).length;
+  if(ayahs === 0){ toast('Place at least one ayah first (Build tab) — attach gems to cells.'); return; }
+  playing = true; score = 0;
+  playerCell = Math.floor(GRID/2)*GRID + Math.floor(GRID/2);
+  const {x,z} = cellXZ(playerCell);
+  player.position.set(x, cellHeight(playerCell)+0.05, z);
+  player.visible = true;
+  markVisited(playerCell);
+  $('score-hud').style.display = 'block';
+  refreshHud(); refreshPlayStatus();
+  toast('🎮 Explore! Move with WASD / arrows. Find the golden gems.');
+}
+function endPlay(){
+  playing = false; player.visible = false;
+  $('score-hud').style.display = 'none';
+  refreshPlayStatus();
+}
+function markVisited(i){
+  const c = world.cells[i];
+  if(!c.visited){ c.visited = true; score += 10; saveWorld(); }
+  if(c.ayah && !c.found){
+    c.found = true; score += 50; saveWorld();
+    openAyahModal(c.ayah);
+    const remaining = world.cells.filter(k=>k.ayah && !k.found).length;
+    if(remaining === 0) showWin();
+  }
+  refreshHud();
+}
+function tryMove(dr, dc){
+  if(!playing || moving) return;
+  const row = Math.floor(playerCell/GRID)+dr, col = (playerCell%GRID)+dc;
+  if(row<0||row>=GRID||col<0||col>=GRID) return;
+  const next = row*GRID+col;
+  moving = true; playerCell = next;
+  const {x,z} = cellXZ(next);
+  moveTarget = new THREE.Vector3(x, cellHeight(next)+0.05, z);
+}
+function showWin(){
+  $('win-text').textContent =
+    `You explored the world and found every ayah. Final score: ${score} points.`;
+  $('win-overlay').classList.add('open');
+}
+
+/* ---------------- ayah fetching ---------------- */
+async function fetchAyah(surah, ayah){
+  const url = `https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/editions/quran-uthmani,en.sahih`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('API '+res.status);
+  const data = await res.json();
+  if(data.code!==200 || !data.data || data.data.length<2) throw new Error('Ayah not found');
+  const ar = data.data[0], tr = data.data[1];
+  return {
+    surah, ayah, globalNumber: ar.number,
+    arabic: ar.text,
+    translation: (tr.text||'').replace(/^بِسْمِ.*?\s*/,''),
+    audio: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${ar.number}.mp3`
+  };
+}
+function openAyahModal(a){
+  $('ayah-ref').textContent = `📖 ${a.surah}:${a.ayah}`;
+  $('ayah-arabic').textContent = a.arabic;
+  $('ayah-translation').textContent = a.translation;
+  $('ayah-link').href = `https://quran.com/${a.surah}/${a.ayah}`;
+  $('ayah-modal').classList.add('open');
+  currentAudioAyah = a;
+}
+let currentAudioAyah = null;
+$('btn-audio').onclick = ()=>{
+  if(currentAudioAyah) new Audio(currentAudioAyah.audio).play();
+};
+$('btn-close-ayah').onclick = ()=> $('ayah-modal').classList.remove('open');
+
+/* ---------------- camera capture ---------------- */
+let camStream = null;
+async function openCamera(){
+  if(selectedIndex < 0){ toast('Select a grid cell first.'); return; }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:1280} },
+      audio:false
+    });
+    $('cam-video').srcObject = camStream;
+    $('cam-modal').classList.add('open');
+  }catch(e){
+    toast('⚠ Camera unavailable — use "Upload photo instead".');
+  }
+}
+function closeCamera(){
+  $('cam-modal').classList.remove('open');
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+}
+function captureCell(){
+  const v = $('cam-video');
+  const dataUrl = frameToSquareDataUrl(v, 256);
+  setCellPhoto(dataUrl);
+  closeCamera();
+}
+function frameToSquareDataUrl(src, size){
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const w = src.videoWidth || src.width, h = src.videoHeight || src.height;
+  if(w && h){
+    const s = Math.min(w,h);
+    ctx.drawImage(src, (w-s)/2, (h-s)/2, s, s, 0, 0, size, size);
+  }
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+function setCellPhoto(dataUrl){
+  if(selectedIndex < 0) return;
+  const c = world.cells[selectedIndex];
+  c.photo = dataUrl;
+  if(c.height <= 0) c.height = 0.4;
+  textureCache.delete(selectedIndex);
+  saveWorld(); rebuildWorld(); refreshBuildPanel();
+  toast(`✅ Cell ${selectedIndex%GRID+1},${Math.floor(selectedIndex/GRID)+1} captured into the world.`);
+}
+
+/* ---------------- UI wiring ---------------- */
+function switchTab(name){
+  document.querySelectorAll('#tabs button').forEach(b=>
+    b.classList.toggle('active', b.dataset.tab===name));
+  ['build','play','world'].forEach(t=>
+    $('tab-'+t).style.display = (t===name)?'block':'none');
+  if(name==='world') refreshWorldTab();
+  if(name==='play') refreshPlayStatus();
+  if(name==='build') refreshBuildPanel();
+}
+document.querySelectorAll('#tabs button').forEach(b=>
+  b.onclick = ()=>switchTab(b.dataset.tab));
+
+$('btn-cam').onclick = openCamera;
+$('btn-cam-cancel').onclick = closeCamera;
+$('btn-capture').onclick = captureCell;
+$('btn-upload').onclick = ()=>$('file-input').click();
+$('file-input').onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const s = Math.min(img.width, img.height);
+    canvas.getContext('2d').drawImage(img,
+      (img.width-s)/2,(img.height-s)/2,s,s, 0,0,256,256);
+    setCellPhoto(canvas.toDataURL('image/jpeg',0.82));
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+  e.target.value = '';
+};
+$('height-slider').oninput = e=>{
+  $('h-val').textContent = (+e.target.value).toFixed(1);
+  if(selectedIndex>=0){
+    world.cells[selectedIndex].height = +e.target.value;
+    saveWorld(); rebuildWorld(); selectCell(selectedIndex);
+  }
+};
+$('btn-clear').onclick = ()=>{
+  if(selectedIndex<0) return;
+  world.cells[selectedIndex] = defaultCell();
+  textureCache.delete(selectedIndex);
+  saveWorld(); rebuildWorld(); selectCell(selectedIndex);
+  toast('Cell cleared.');
+};
+$('btn-attach').onclick = async ()=>{
+  if(selectedIndex<0){ toast('Select a grid cell first.'); return; }
+  const s = +$('surah').value, a = +$('ayah').value;
+  if(!(s>=1&&s<=114) || !(a>=1)){ toast('Enter a valid surah and ayah number.'); return; }
+  toast('Fetching ayah…');
+  try{
+    world.cells[selectedIndex].ayah = await fetchAyah(s,a);
+    saveWorld(); rebuildWorld(); refreshBuildPanel();
+    toast(`✨ Ayah ${s}:${a} linked to this cell.`);
+  }catch(err){
+    toast('⚠ Could not fetch ayah (check numbers / internet).');
+  }
+};
+document.querySelectorAll('.pill').forEach(p=> p.onclick = ()=>{
+  $('surah').value = p.dataset.s; $('ayah').value = p.dataset.a;
+  $('btn-attach').click();
+});
+$('btn-play').onclick = startPlay;
+$('btn-stop').onclick = endPlay;
+$('btn-publish').onclick = ()=>{
+  world.version++;
+  world.cells.forEach(c=>{ c.visited=false; c.found=false; });
+  score = 0; endPlay();
+  saveWorld(); rebuildWorld(); refreshWorldTab();
+  toast(`🚀 World updated to v${world.version} — exploration reset, replay it!`);
+};
+$('btn-export').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(world)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `quran-grid-world-v${world.version}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('btn-import').onclick = ()=>$('import-input').click();
+$('import-input').onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const w = JSON.parse(r.result);
+      if(!w.cells || w.cells.length!==GRID*GRID) throw 0;
+      world = w; textureCache.clear();
+      saveWorld(); rebuildWorld(); refreshWorldTab(); refreshBuildPanel();
+      toast('World imported.');
+    }catch(_){ toast('⚠ Invalid world file.'); }
+  };
+  r.readAsText(f); e.target.value='';
+};
+$('btn-reset').onclick = ()=>{
+  if(!confirm('Reset the whole world? Photos and ayahs will be lost.')) return;
+  world = defaultWorld(); textureCache.clear();
+  saveWorld(); rebuildWorld(); refreshWorldTab();
+  toast('World reset to v1.');
+};
+
+function refreshBuildPanel(){
+  if(selectedIndex<0){
+    $('selected-info').innerHTML = 'No cell selected — click one on the map.';
+    $('cell-ayah-info').innerHTML = '';
+    return;
+  }
+  const c = world.cells[selectedIndex];
+  const col = selectedIndex%GRID+1, row = Math.floor(selectedIndex/GRID)+1;
+  $('selected-info').innerHTML =
+    `Cell <b>${col}, ${row}</b> — ${c.photo?'📷 photo':'⬜ no photo'}, `+
+    `height <b>${c.height.toFixed(1)}</b>`;
+  $('cell-ayah-info').innerHTML = c.ayah
+    ? `Linked ayah: <b>${c.ayah.surah}:${c.ayah.ayah}</b> — “${c.ayah.translation.slice(0,90)}…”`
+    : 'No ayah linked to this cell yet.';
+}
+function refreshPlayStatus(){
+  $('play-status').innerHTML = playing
+    ? `▶ Running — score <b>${score}</b>, ayahs found `+
+      `<b>${world.cells.filter(c=>c.ayah&&c.found).length}/${world.cells.filter(c=>c.ayah).length}</b>`
+    : 'Game not running.';
+}
+function refreshWorldTab(){
+  $('ver').textContent = world.version;
+  $('next-ver').textContent = world.version+1;
+  const built = world.cells.filter(c=>c.height>0).length;
+  const ayahs = world.cells.filter(c=>c.ayah).length;
+  $('world-info').innerHTML =
+    `Current: <b>v${world.version}</b> · ${built} built cells · ${ayahs} ayah links.<br>`+
+    `Auto-saved in this browser. Export before clearing browser data.`;
+}
+function refreshHud(){
+  $('ver').textContent = world.version;
+  $('cell-count').textContent = world.cells.filter(c=>c.height>0).length;
+  $('ayah-count').textContent = world.cells.filter(c=>c.ayah).length;
+  const total = world.cells.filter(c=>c.ayah).length;
+  const found = world.cells.filter(c=>c.ayah&&c.found).length;
+  $('score').textContent = score;
+  $('found').textContent = found;
+  $('total').textContent = total;
+}
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 3200);
+}
+
+/* ---------------- input: orbit + pick + keys ---------------- */
+const raycaster = new THREE.Raycaster();
+let dragging=false, dragMoved=false, lastX=0, lastY=0;
+renderer.domElement.addEventListener('pointerdown', e=>{
+  dragging = true; dragMoved = false; lastX = e.clientX; lastY = e.clientY;
+});
+renderer.domElement.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx = e.clientX-lastX, dy = e.clientY-lastY;
+  if(Math.abs(dx)+Math.abs(dy) > 4) dragMoved = true;
+  camTheta -= dx*0.006; camPhi -= dy*0.005;
+  lastX = e.clientX; lastY = e.clientY;
+  updateCamera();
+});
+addEventListener('pointerup', e=>{
+  dragging = false;
+});
+renderer.domElement.addEventListener('click', e=>{
+  if(dragMoved) return;                       // it was a drag, not a click
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((e.clientX-rect.left)/rect.width)*2-1,
+    -((e.clientY-rect.top)/rect.height)*2+1
+  );
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(ground);
+  if(!hits.length) return;
+  const p = hits[0].point;
+  const col = Math.floor(p.x + GRID/2), row = Math.floor(p.z + GRID/2);
+  if(col<0||col>=GRID||row<0||row>=GRID) return;
+  selectCell(row*GRID+col);
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  camDist *= 1 + Math.sign(e.deltaY)*0.08;
+  updateCamera(); e.preventDefault();
+}, {passive:false});
+addEventListener('keydown', e=>{
+  if($('ayah-modal').classList.contains('open') ||
+     $('cam-modal').classList.contains('open')) return;
+  const k = e.key.toLowerCase();
+  if(k==='w'||k==='arrowup') tryMove(-1,0);
+  else if(k==='s'||k==='arrowdown') tryMove(1,0);
+  else if(k==='a'||k==='arrowleft') tryMove(0,-1);
+  else if(k==='d'||k==='arrowright') tryMove(0,1);
+});
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------------- animation loop ---------------- */
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  gemGroup.children.forEach(g=>{
+    g.rotation.y = t*1.2;
+    g.position.y = g.userData.baseY + Math.sin(t*2 + g.position.x*3)*0.08;
+  });
+  if(moving && moveTarget){
+    player.position.lerp(
+      new THREE.Vector3(moveTarget.x, moveTarget.y, moveTarget.z), 0.18);
+    if(player.position.distanceTo(moveTarget) < 0.03){
+      player.position.copy(moveTarget); moving=false; moveTarget=null;
+      markVisited(playerCell);
+    }
+  }
+  if(player.visible) body.rotation.y = t*1.5;
+  renderer.render(scene, camera);
+}
+
+/* ---------------- boot ---------------- */
+rebuildWorld();
+refreshWorldTab();
+refreshBuildPanel();
+animate();
+</script>
+</body>
+</html>
