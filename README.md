@@ -2,6 +2,20 @@
 
 The Quran as a live 3D grid map — built for memorization (hifz). Scan real places with your camera into the map as memory-palace anchors, track every ayah you memorize, and play the **Audio Quest** game to strengthen recall.
 
+**📲 Install it on your iPhone** (it's a PWA — a real home-screen app):
+1. Open https://mrbugimposter3-ship-it.github.io/quran-grid-world/ in **Safari**
+2. Tap **Share** ⬆ → **Add to Home Screen** → **Add**
+3. It launches fullscreen with its own icon, works offline, and saves everything on-device
+
+Also installs on Android: Chrome → ⋮ → *Add to Home screen*.
+
+## Mobile-first
+
+- On phones the side panel becomes a **bottom sheet** (drag handle to collapse, 📖 button to reopen)
+- **Touch controls**: one finger orbits, pinch zooms, tap selects/answers, and an on-screen **D-pad** walks the map
+- Safe-area aware (notches/home bar), no accidental zoom or pull-to-refresh, camera works via HTTPS
+- Service worker caches the app shell — opens offline (surah map included); verses/recitation stream when online
+
 **▶ Live:** https://mrbugimposter3-ship-it.github.io/quran-grid-world/
 
 ## The grid mapping algorithm
@@ -34,4 +48,4 @@ Single-file web app: Three.js 3D grid, `getUserMedia` camera capture, alquran.cl
 
 ## Run locally
 
-Open `index.html` in a browser (internet needed for live data, verses, and camera permission requires HTTPS — which GitHub Pages provides).
+Open `index.html` in a browser (internet needed for live data, verses, and camera permission requires HTTPS — which GitHub Pages provides). Service worker only activates when served over HTTPS.

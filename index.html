@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0f17">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hifz World">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Hifz Grid World — the Quran as a 3D map</title>
 <style>
   :root{
@@ -11,19 +19,62 @@
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%; overflow:hidden; background:var(--bg); color:var(--text);
-    font-family:'Segoe UI', system-ui, sans-serif;}
+    font-family:'Segoe UI', system-ui, sans-serif;
+    overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
+    -webkit-text-size-adjust:100%;}
   #scene{position:absolute; inset:0;}
-  #scene canvas{display:block;}
+  #scene canvas{display:block; touch-action:none;}
 
   #hud-top{position:absolute; top:14px; left:16px; z-index:5; pointer-events:none;}
   #hud-top h1{font-size:16px; letter-spacing:.5px; font-weight:600;}
   #hud-top .sub{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.6;}
   #hud-top .sub b{color:var(--green);}
 
-  #score-hud{position:absolute; top:14px; right:360px; z-index:6; display:none;
-    background:rgba(19,26,38,.9); border:1px solid var(--line); border-radius:10px;
-    padding:8px 14px; font-size:13px; line-height:1.5;}
-  #score-hud b{color:var(--gold); font-size:16px;}
+  /* quiz score line (inside quiz bar) */
+  #quiz-score{font-size:12px; color:var(--muted); margin-bottom:6px;}
+  #quiz-score b{color:var(--gold); font-size:14px;}
+
+  /* on-screen d-pad (touch devices) */
+  #dpad{position:absolute; left:14px; bottom:16px; z-index:9; display:none;
+    grid-template-columns:repeat(3,50px); grid-template-rows:repeat(3,50px); gap:5px;}
+  #dpad .dp{background:rgba(19,26,38,.78); border:1px solid var(--line); color:var(--text);
+    border-radius:12px; font-size:18px; touch-action:none; user-select:none;
+    -webkit-user-select:none; cursor:pointer;}
+  #dpad .dp:active{background:rgba(79,140,255,.45);}
+  #dpad .up{grid-area:1/2;} #dpad .left{grid-area:2/1;}
+  #dpad .right{grid-area:2/3;} #dpad .down{grid-area:3/2;}
+
+  /* mobile bottom sheet */
+  #sheet-handle{display:none; justify-content:center; padding:9px 0 3px; cursor:pointer;}
+  #sheet-handle span{display:block; width:46px; height:5px; border-radius:3px;
+    background:var(--line);}
+  #panel-fab{display:none; position:absolute; right:14px; bottom:14px; z-index:9;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);}
+
+  /* iOS install tip */
+  #install-tip{position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    z-index:12; display:none; background:rgba(19,26,38,.95); border:1px solid var(--gold);
+    border-radius:12px; padding:10px 16px; font-size:13px; max-width:88vw; text-align:center;}
+  #install-tip.show{display:block;}
+  #install-close{float:right; cursor:pointer; color:var(--muted); padding:0 2px 0 10px;}
+
+  @media (pointer: coarse){ #dpad{display:grid;} }
+  @media (max-width: 820px){
+    #panel{top:auto; bottom:0; left:0; right:0; width:100%; height:52vh;
+      border-left:none; border-top:1px solid var(--line);
+      border-radius:18px 18px 0 0; padding-bottom:env(safe-area-inset-bottom);}
+    #sheet-handle{display:flex;}
+    #panel.collapsed{display:none;}
+    #panel.collapsed ~ #panel-fab{display:block;}
+    #dpad{bottom:calc(52vh + 14px);}
+    body.sheet-collapsed #dpad{bottom:14px;}
+    #hud-top h1{font-size:13px;}
+    #hud-top .sub{font-size:10px;}
+    #quiz-bar{top:64px; left:10px; right:10px; width:auto; transform:none; z-index:11;}
+    #hint{display:none;}
+    #ayah-arabic{font-size:22px;}
+    .tab-body{padding:12px;}
+  }
   #hint{position:absolute; bottom:14px; left:16px; z-index:5; font-size:12px;
     color:var(--muted); background:rgba(11,15,23,.6); padding:6px 10px; border-radius:8px;}
 
@@ -111,17 +162,15 @@
   <div class="sub" id="hud-stats">Loading the Quran map…</div>
 </div>
 
-<div id="score-hud">
-  Score <b id="q-score">0</b> · Streak <span id="q-streak">0</span> · Best <span id="q-best">0</span>
-</div>
-
 <div id="quiz-bar">
   <div id="quiz-title">🎧 Audio Quest — walk to the right surah</div>
+  <div id="quiz-score"></div>
   <div id="quiz-question">…</div>
   <div id="quiz-hint-ar"></div>
   <div class="quiz-btns">
     <button class="btn small" id="btn-replay">🔊 Replay</button>
     <button class="btn ghost small" id="btn-hint">🅰 Arabic hint</button>
+    <button class="btn small" id="btn-answer" style="background:var(--green); color:#08130d;">✅ Answer here</button>
     <button class="btn ghost small" id="btn-next" style="display:none">Next ▶</button>
     <button class="btn ghost small" id="btn-skip">Skip</button>
     <button class="btn danger small" id="btn-stop-quiz">End</button>
@@ -131,6 +180,7 @@
 <div id="hint">🖱 Drag to rotate · scroll to zoom · click a cell to select</div>
 
 <div id="panel">
+  <div id="sheet-handle" title="Collapse panel"><span></span></div>
   <div id="tabs">
     <button class="active" data-tab="hifz">📖 Hifz</button>
     <button data-tab="play">🎮 Quest</button>
@@ -248,6 +298,15 @@
     </section>
   </div>
 </div>
+
+<div id="dpad">
+  <button class="dp up">▲</button>
+  <button class="dp left">◀</button>
+  <button class="dp right">▶</button>
+  <button class="dp down">▼</button>
+</div>
+<button class="btn" id="panel-fab">📖 Panel</button>
+<div id="install-tip">📲 Install as an iPhone app: tap <b>Share</b> ⬆ then <b>Add to Home Screen</b> <span id="install-close">✕</span></div>
 
 <!-- Camera modal -->
 <div class="modal-backdrop" id="cam-modal">
@@ -762,7 +821,7 @@ function startQuiz(){
   quiz.active = true; quiz.score = 0; quiz.streak = 0; quiz.awaitingAnswer = true;
   playerCell = 0; placePlayer(0); player.visible = true;
   $('quiz-bar').classList.add('open');
-  $('score-hud').style.display = 'block';
+  if(matchMedia('(max-width: 820px)').matches) collapseSheet();
   refreshQuizHud(); refreshQuizStatus();
   nextQuestion();
 }
@@ -770,7 +829,6 @@ function stopQuiz(){
   quiz.active = false; quiz.awaitingAnswer = false;
   if(quiz.audio){ quiz.audio.pause(); quiz.audio = null; }
   $('quiz-bar').classList.remove('open');
-  $('score-hud').style.display = 'none';
   refreshQuizStatus();
 }
 function submitAnswer(cellIdx, byClick){
@@ -816,9 +874,8 @@ $('btn-hint').onclick = ()=>{
 $('btn-next').onclick = ()=>{ $('ayah-modal').classList.remove('open'); nextQuestion(); };
 $('btn-skip').onclick = ()=>{ if(quiz.active){ quiz.awaitingAnswer=true; nextQuestion(); } };
 function refreshQuizHud(){
-  $('q-score').textContent = quiz.score;
-  $('q-streak').textContent = quiz.streak;
-  $('q-best').textContent = state.best;
+  $('quiz-score').innerHTML =
+    `Score <b>${quiz.score}</b> · Streak ${quiz.streak} · Best ${state.best}`;
 }
 function refreshQuizStatus(){
   $('quiz-status').innerHTML = quiz.active
@@ -1069,19 +1126,39 @@ function toast(msg){
 
 /* ---------- input: orbit / pick / keys ---------- */
 const raycaster = new THREE.Raycaster();
-let dragging=false, dragMoved=false, lastX=0, lastY=0;
+const activePointers = new Map();
+let dragging=false, dragMoved=false, lastX=0, lastY=0, pinchDist=null;
 renderer.domElement.addEventListener('pointerdown', e=>{
-  dragging = true; dragMoved = false; lastX = e.clientX; lastY = e.clientY;
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(activePointers.size===1){
+    dragging = true; dragMoved = false; lastX = e.clientX; lastY = e.clientY;
+  }else{                       // second finger: pinch-zoom, cancel rotate
+    dragging = false; dragMoved = true; pinchDist = null;
+  }
 });
 renderer.domElement.addEventListener('pointermove', e=>{
-  if(!dragging) return;
-  const dx = e.clientX-lastX, dy = e.clientY-lastY;
-  if(Math.abs(dx)+Math.abs(dy) > 4) dragMoved = true;
-  camTheta -= dx*0.006; camPhi -= dy*0.005;
-  lastX = e.clientX; lastY = e.clientY;
-  updateCamera();
+  if(!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(activePointers.size===2){                     // two fingers: pinch zoom
+    const p = [...activePointers.values()];
+    const d = Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+    if(pinchDist){ camDist *= pinchDist/d; updateCamera(); }
+    pinchDist = d;
+  }else if(dragging){                              // one finger: orbit
+    const dx = e.clientX-lastX, dy = e.clientY-lastY;
+    if(Math.abs(dx)+Math.abs(dy) > 4) dragMoved = true;
+    camTheta -= dx*0.006; camPhi -= dy*0.005;
+    lastX = e.clientX; lastY = e.clientY;
+    updateCamera();
+  }
 });
-addEventListener('pointerup', ()=>{ dragging = false; });
+function endPointer(e){
+  activePointers.delete(e.pointerId);
+  if(activePointers.size<2) pinchDist = null;
+  if(activePointers.size===0) dragging = false;
+}
+addEventListener('pointerup', endPointer);
+addEventListener('pointercancel', endPointer);
 renderer.domElement.addEventListener('click', e=>{
   if(dragMoved) return;
   const rect = renderer.domElement.getBoundingClientRect();
@@ -1113,6 +1190,53 @@ addEventListener('keydown', e=>{
   else if(k==='enter' && quiz.active && quiz.awaitingAnswer)
     submitAnswer(playerCell, false);
 });
+
+/* ---------- mobile: d-pad, answer button, sheet, install tip ---------- */
+let dpadTimer = null;
+document.querySelectorAll('#dpad .dp').forEach(btn=>{
+  const dir = btn.classList.contains('up')   ? [-1,0] :
+              btn.classList.contains('down') ? [ 1,0] :
+              btn.classList.contains('left') ? [0,-1] : [0,1];
+  btn.addEventListener('pointerdown', e=>{
+    e.preventDefault(); e.stopPropagation();
+    tryMove(dir[0], dir[1]);
+    clearInterval(dpadTimer);
+    dpadTimer = setInterval(()=>tryMove(dir[0], dir[1]), 170);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>
+    btn.addEventListener(ev, ()=>clearInterval(dpadTimer)));
+});
+$('btn-answer').onclick = ()=>{
+  if(quiz.active && quiz.awaitingAnswer) submitAnswer(playerCell, false);
+  else toast('Start the Audio Quest first (🎮 Quest tab).');
+};
+function collapseSheet(){
+  $('panel').classList.add('collapsed');
+  document.body.classList.add('sheet-collapsed');
+}
+function expandSheet(){
+  $('panel').classList.remove('collapsed');
+  document.body.classList.remove('sheet-collapsed');
+}
+$('sheet-handle').onclick = ()=>{
+  if($('panel').classList.contains('collapsed')) expandSheet();
+  else collapseSheet();
+};
+$('panel-fab').onclick = expandSheet;
+(function installTip(){
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const standalone = navigator.standalone===true ||
+    matchMedia('(display-mode: standalone)').matches;
+  if(isIOS && !standalone && !sessionStorage.getItem('hifz-tip')){
+    $('install-tip').classList.add('show');
+    setTimeout(()=>$('install-tip').classList.remove('show'), 12000);
+  }
+})();
+$('install-close').onclick = ()=>{
+  $('install-tip').classList.remove('show');
+  sessionStorage.setItem('hifz-tip','1');
+};
 addEventListener('resize', ()=>{
   camera3d.aspect = innerWidth/innerHeight;
   camera3d.updateProjectionMatrix();
@@ -1152,6 +1276,13 @@ function animate(){
   animate();
   toast('📖 Live Quran map loaded — 114 surahs + 30 ajzā’. Click a cell to track hifz.');
 })();
+
+/* ---------- PWA: service worker (offline app shell) ---------- */
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
