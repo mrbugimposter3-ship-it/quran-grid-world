@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quran Grid World — Camera → 3D Map → Ayah Hunt</title>
+<title>Hifz Grid World — the Quran as a 3D map</title>
 <style>
   :root{
     --bg:#0b0f17; --panel:#131a26; --panel2:#1a2333; --line:#263349;
@@ -15,19 +15,33 @@
   #scene{position:absolute; inset:0;}
   #scene canvas{display:block;}
 
-  /* HUD */
   #hud-top{position:absolute; top:14px; left:16px; z-index:5; pointer-events:none;}
   #hud-top h1{font-size:16px; letter-spacing:.5px; font-weight:600;}
-  #hud-top .sub{font-size:12px; color:var(--muted); margin-top:2px;}
-  #score-hud{position:absolute; top:14px; right:16px; z-index:5; display:none;
-    background:rgba(19,26,38,.85); border:1px solid var(--line); border-radius:10px;
-    padding:10px 14px; font-size:13px; line-height:1.5;}
+  #hud-top .sub{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.6;}
+  #hud-top .sub b{color:var(--green);}
+
+  #score-hud{position:absolute; top:14px; right:360px; z-index:6; display:none;
+    background:rgba(19,26,38,.9); border:1px solid var(--line); border-radius:10px;
+    padding:8px 14px; font-size:13px; line-height:1.5;}
   #score-hud b{color:var(--gold); font-size:16px;}
   #hint{position:absolute; bottom:14px; left:16px; z-index:5; font-size:12px;
     color:var(--muted); background:rgba(11,15,23,.6); padding:6px 10px; border-radius:8px;}
 
+  /* quiz banner */
+  #quiz-bar{position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    z-index:8; width:min(640px, 60vw); display:none;
+    background:rgba(19,26,38,.95); border:1px solid var(--accent); border-radius:12px;
+    padding:12px 16px; font-size:13px;}
+  #quiz-bar.open{display:block;}
+  #quiz-title{color:var(--accent); font-size:12px; text-transform:uppercase;
+    letter-spacing:1px; margin-bottom:6px;}
+  #quiz-question{font-size:15px; line-height:1.5; min-height:40px;}
+  #quiz-hint-ar{font-size:20px; direction:rtl; text-align:right; color:#f3e6c8;
+    font-family:'Amiri','Scheherazade New',serif; margin-top:6px; display:none;}
+  .quiz-btns{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+
   /* Side panel */
-  #panel{position:absolute; top:0; right:0; bottom:0; width:330px; z-index:10;
+  #panel{position:absolute; top:0; right:0; bottom:0; width:340px; z-index:10;
     background:var(--panel); border-left:1px solid var(--line);
     display:flex; flex-direction:column;}
   #tabs{display:flex; border-bottom:1px solid var(--line);}
@@ -46,17 +60,23 @@
   button.btn.gold{background:var(--gold); color:#20170a;}
   button.btn.danger{background:#c05555;}
   button.btn.small{flex:0; padding:6px 10px; font-size:12px;}
-  input[type=text], input[type=number]{
+  input[type=text], input[type=number], select{
     background:var(--panel2); border:1px solid var(--line); color:var(--text);
-    border-radius:8px; padding:9px 10px; font-size:13px; width:100%;}
-  input[type=range]{width:100%; accent-color:var(--accent);}
+    border-radius:8px; padding:8px 10px; font-size:13px; width:100%;}
   .info-box{background:var(--panel2); border:1px solid var(--line); border-radius:10px;
-    padding:10px 12px; font-size:12.5px; color:var(--muted); margin-bottom:12px; line-height:1.5;}
+    padding:10px 12px; font-size:12.5px; color:var(--muted); margin-bottom:12px; line-height:1.55;}
   .info-box b{color:var(--text);}
   .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line);
     border-radius:20px; padding:5px 11px; font-size:12px; cursor:pointer; margin:0 6px 6px 0;}
   .pill:hover{border-color:var(--gold);}
   label{font-size:12px; color:var(--muted); display:block; margin:6px 0 4px;}
+  .chips{display:flex; flex-wrap:wrap; gap:4px; max-height:180px; overflow-y:auto;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:8px;}
+  .chip{display:inline-block; min-width:30px; text-align:center; padding:3px 4px;
+    font-size:11px; border-radius:6px; background:#0e1420; color:var(--muted);
+    border:1px solid var(--line); cursor:pointer; user-select:none;}
+  .chip.on{background:var(--green); color:#08130d; border-color:var(--green); font-weight:700;}
+  .chip:hover{border-color:var(--accent);}
 
   /* Modals */
   .modal-backdrop{position:fixed; inset:0; background:rgba(4,7,12,.75); z-index:50;
@@ -71,24 +91,14 @@
     color:#f3e6c8;}
   #ayah-translation{font-size:14px; color:var(--text); line-height:1.6; font-style:italic;}
   #ayah-modal a{color:var(--accent); font-size:13px;}
-  .ayah-actions{display:flex; gap:8px; margin-top:16px;}
+  .ayah-actions{display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;}
+  #ayah-answer-note{margin-top:10px; font-size:13px;}
 
   #toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
     background:var(--panel2); border:1px solid var(--line); color:var(--text);
     border-radius:10px; padding:10px 18px; font-size:13px; z-index:99;
     opacity:0; transition:opacity .3s; pointer-events:none; max-width:80vw;}
   #toast.show{opacity:1;}
-
-  #win-overlay{position:fixed; inset:0; z-index:80; display:none;
-    align-items:center; justify-content:center; background:rgba(4,7,12,.85);}
-  #win-overlay.open{display:flex;}
-  .win-card{background:var(--panel); border:1px solid var(--gold); border-radius:16px;
-    padding:34px; text-align:center; width:min(420px,90vw);}
-  .win-card h2{color:var(--gold); font-size:22px; margin-bottom:10px;}
-  .win-card p{color:var(--muted); font-size:14px; margin-bottom:18px;}
-  #panel-toggle{position:absolute; top:60px; right:340px; z-index:11; display:none;}
-  #panel.collapsed{display:none;}
-  #panel.collapsed + #panel-toggle{display:block;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -97,92 +107,118 @@
 <div id="scene"></div>
 
 <div id="hud-top">
-  <h1>🌍 Quran Grid World</h1>
-  <div class="sub">World version <span id="ver">1</span> · <span id="cell-count">0</span> cells built · <span id="ayah-count">0</span> ayahs placed</div>
+  <h1>📖 Hifz Grid World</h1>
+  <div class="sub" id="hud-stats">Loading the Quran map…</div>
 </div>
 
 <div id="score-hud">
-  Score: <b id="score">0</b><br>
-  Ayahs found: <span id="found">0</span>/<span id="total">0</span><br>
-  <span style="color:var(--muted)">Move: WASD / arrow keys</span>
+  Score <b id="q-score">0</b> · Streak <span id="q-streak">0</span> · Best <span id="q-best">0</span>
+</div>
+
+<div id="quiz-bar">
+  <div id="quiz-title">🎧 Audio Quest — walk to the right surah</div>
+  <div id="quiz-question">…</div>
+  <div id="quiz-hint-ar"></div>
+  <div class="quiz-btns">
+    <button class="btn small" id="btn-replay">🔊 Replay</button>
+    <button class="btn ghost small" id="btn-hint">🅰 Arabic hint</button>
+    <button class="btn ghost small" id="btn-next" style="display:none">Next ▶</button>
+    <button class="btn ghost small" id="btn-skip">Skip</button>
+    <button class="btn danger small" id="btn-stop-quiz">End</button>
+  </div>
 </div>
 
 <div id="hint">🖱 Drag to rotate · scroll to zoom · click a cell to select</div>
 
 <div id="panel">
   <div id="tabs">
-    <button class="active" data-tab="build">🔨 Build</button>
-    <button data-tab="play">🎮 Play</button>
+    <button class="active" data-tab="hifz">📖 Hifz</button>
+    <button data-tab="play">🎮 Quest</button>
     <button data-tab="world">🗄 World</button>
   </div>
 
-  <!-- BUILD TAB -->
-  <div class="tab-body" id="tab-build">
+  <!-- HIFZ TAB -->
+  <div class="tab-body" id="tab-hifz">
     <div class="info-box">
-      Click a grid cell (or use the 🔨 tools below) to build your world from <b>real photos</b>.
-      Each photo fills one grid cell — scan your street, room, park… cell by cell.
+      <b>Live Quran map:</b> the 12×12 grid maps the whole Quran —
+      <b>114 surahs</b> (cells 1–114) + <b>30 ajzā’</b> (J1–J30).
+      Height = surah length. Mark ayahs memorized and cells turn
+      <span style="color:var(--green)"><b>green</b></span>; cells due for review pulse
+      <span style="color:#d66"><b>red</b></span>.
     </div>
 
     <section>
       <h3>Selected cell</h3>
-      <div class="info-box" id="selected-info">No cell selected — click one on the map.</div>
+      <div class="info-box" id="selected-info">Click a cell on the map.</div>
+      <label>Memorized ayahs (tap numbers to toggle)</label>
+      <div class="chips" id="ayah-chips"></div>
       <div class="row">
-        <button class="btn" id="btn-cam">📷 Capture from camera</button>
+        <button class="btn small" id="btn-all">All</button>
+        <button class="btn ghost small" id="btn-none">None</button>
+        <button class="btn ghost small" id="btn-reviewed">✅ Reviewed today</button>
       </div>
-      <div class="row">
-        <button class="btn ghost" id="btn-upload">🖼 Upload photo instead</button>
-        <input type="file" id="file-input" accept="image/*" hidden>
-      </div>
-      <label>Height (cell elevation): <span id="h-val">0.4</span></label>
-      <input type="range" id="height-slider" min="0" max="2" step="0.1" value="0.4">
-      <div class="row">
-        <button class="btn danger small" id="btn-clear">🗑 Clear cell</button>
-      </div>
+      <label>Recall strength (spaced repetition interval)</label>
+      <select id="strength"><option value="1">1 · review in 2 days</option>
+        <option value="2">2 · 4 days</option><option value="3" selected>3 · 7 days</option>
+        <option value="4">4 · 15 days</option><option value="5">5 · 30 days</option></select>
     </section>
 
     <section>
-      <h3>Attach an ayah link</h3>
-      <div class="row" style="align-items:center">
-        <input type="number" id="surah" placeholder="Surah (2)" min="1" max="114" style="flex:1">
-        <span style="color:var(--muted)">:</span>
-        <input type="number" id="ayah" placeholder="Ayah (255)" min="1" style="flex:1">
+      <h3>Memory palace (camera)</h3>
+      <div class="row">
+        <button class="btn" id="btn-cam">📷 Scan a place into this cell</button>
       </div>
       <div class="row">
-        <button class="btn gold" id="btn-attach">✨ Attach ayah to cell</button>
+        <button class="btn ghost" id="btn-upload">🖼 Upload photo</button>
+        <button class="btn danger small" id="btn-clear-photo">🗑</button>
+        <input type="file" id="file-input" accept="image/*" hidden>
       </div>
-      <label>Quick picks:</label>
+      <div class="info-box">Attach a real place (your prayer spot, the masjid…) to a surah —
+        walking the map becomes a journey through places and verses.</div>
+    </section>
+
+    <section>
+      <h3>Pin an ayah link</h3>
+      <div class="row" style="align-items:center">
+        <input type="number" id="pin-surah" placeholder="Surah (2)" min="1" max="114" style="flex:1">
+        <span style="color:var(--muted)">:</span>
+        <input type="number" id="pin-ayah" placeholder="Ayah (255)" min="1" style="flex:1">
+      </div>
+      <div class="row"><button class="btn gold" id="btn-pin">✨ Pin to cell (shows gem)</button></div>
       <div>
-        <span class="pill" data-s="1" data-a="1">Al-Fatihah 1:1</span>
-        <span class="pill" data-s="2" data-a="255">Ayat al-Kursi 2:255</span>
-        <span class="pill" data-s="94" data-a="6">Ash-Sharh 94:6</span>
-        <span class="pill" data-s="55" data-a="13">Ar-Rahman 55:13</span>
+        <span class="pill" data-s="1" data-a="1">1:1</span>
+        <span class="pill" data-s="2" data-a="255">2:255</span>
+        <span class="pill" data-s="94" data-a="6">94:6</span>
+        <span class="pill" data-s="55" data-a="13">55:13</span>
       </div>
-      <div class="info-box" id="cell-ayah-info" style="margin-top:12px"></div>
+      <div class="info-box" id="pin-info" style="margin-top:10px"></div>
     </section>
   </div>
 
-  <!-- PLAY TAB -->
+  <!-- QUEST TAB -->
   <div class="tab-body" id="tab-play" style="display:none">
     <div class="info-box">
-      Explore the world you built! Every new cell you step on earns points.
-      Cells with a <b>golden gem</b> hold an ayah — reach it to reveal the verse,
-      its translation and audio.
+      <b>Audio Quest</b> — the app plays or shows an ayah from your hifz,
+      and you walk across the Quran map to the surah it belongs to.
+      Correct answers grow the review interval (spaced repetition); wrong ones shrink it.
     </div>
     <section>
-      <h3>Exploration</h3>
-      <div class="row">
-        <button class="btn" id="btn-play">▶ Start exploring</button>
-        <button class="btn ghost" id="btn-stop">⏸ End</button>
+      <h3>Game</h3>
+      <label>Mode</label>
+      <select id="quiz-mode">
+        <option value="audio">🎧 Audio + translation</option>
+        <option value="recall">👁 Translation only (harder)</option>
+      </select>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="btn-start-quiz">▶ Start Audio Quest</button>
       </div>
-      <div class="info-box" id="play-status">Game not running.</div>
+      <div class="info-box" id="quiz-status">Quest not running. Mark some ayahs as memorized (📖 tab) first.</div>
     </section>
     <section>
-      <h3>How the loop works</h3>
+      <h3>Controls</h3>
       <div class="info-box">
-        1️⃣ Build → capture new photos & ayahs<br>
-        2️⃣ Publish update (World tab) → resets exploration<br>
-        3️⃣ Play → re-explore the changed world<br>
-        4️⃣ Repeat — the world is different every update.
+        WASD / arrows to walk · click a cell (or walk onto it) to answer ·
+        Enter submits your current cell · scroll zooms, drag rotates.
       </div>
     </section>
   </div>
@@ -190,9 +226,8 @@
   <!-- WORLD TAB -->
   <div class="tab-body" id="tab-world" style="display:none">
     <div class="info-box">
-      The world auto-saves in your browser. Publishing an update bumps the version,
-      keeps your photos & ayahs, and resets exploration so the game can be replayed
-      against the new world state.
+      Everything auto-saves in your browser. Publish an update to bump the world
+      version — your hifz progress, photos and pins are kept.
     </div>
     <section>
       <h3>Updates</h3>
@@ -200,9 +235,14 @@
       <div class="info-box" id="world-info"></div>
     </section>
     <section>
+      <h3>Quran data</h3>
+      <div class="info-box" id="quran-data-info"></div>
+      <div class="row"><button class="btn ghost" id="btn-refresh-quran">🔄 Refresh live surah data</button></div>
+    </section>
+    <section>
       <h3>Data</h3>
-      <div class="row"><button class="btn ghost" id="btn-export">⬇ Export world (JSON)</button></div>
-      <div class="row"><button class="btn ghost" id="btn-import">⬆ Import world</button></div>
+      <div class="row"><button class="btn ghost" id="btn-export">⬇ Export progress (JSON)</button></div>
+      <div class="row"><button class="btn ghost" id="btn-import">⬆ Import progress</button></div>
       <input type="file" id="import-input" accept=".json" hidden>
       <div class="row"><button class="btn danger" id="btn-reset">⚠ Reset everything</button></div>
     </section>
@@ -212,7 +252,7 @@
 <!-- Camera modal -->
 <div class="modal-backdrop" id="cam-modal">
   <div class="modal">
-    <h2>📷 Scan this cell with your camera</h2>
+    <h2>📷 Scan a real place into this cell</h2>
     <video id="cam-video" autoplay playsinline></video>
     <div class="ayah-actions">
       <button class="btn" id="btn-capture">Capture cell</button>
@@ -228,19 +268,12 @@
     <div id="ayah-arabic"></div>
     <div id="ayah-translation"></div>
     <a id="ayah-link" target="_blank" rel="noopener">Open on Quran.com ↗</a>
+    <div id="ayah-answer-note"></div>
     <div class="ayah-actions">
       <button class="btn gold" id="btn-audio">🔊 Play recitation</button>
+      <button class="btn ghost" id="btn-toggle-memorized">Mark memorized</button>
       <button class="btn ghost" id="btn-close-ayah">Close</button>
     </div>
-  </div>
-</div>
-
-<!-- Win overlay -->
-<div id="win-overlay">
-  <div class="win-card">
-    <h2>🏆 All ayahs found!</h2>
-    <p id="win-text"></p>
-    <button class="btn" onclick="document.getElementById('win-overlay').classList.remove('open')">Continue</button>
   </div>
 </div>
 
@@ -248,149 +281,335 @@
 
 <script>
 /* ============================================================
-   Quran Grid World — prototype
-   grid world -> cells built from camera photos -> ayah links -> exploration game
+   Hifz Grid World
+   Live Quran map  ->  grid mapping algorithm  ->  memorization game
+   Grid (12x12=144): surah n -> cell n-1 (row-major) | juz j -> cell 113+j
    ============================================================ */
-const GRID = 12;              // 12x12 grid world
-const LS_KEY = 'quran-grid-world-v1';
+const GRID_W = 12, GRID_H = 12, CELLS = GRID_W*GRID_H;   // 144 = 114 surahs + 30 ajza
+const SURAH_CELL_COUNT = 114, JUZ_CELL_BASE = 114;
+const LS_KEY = 'hifz-grid-world-v1', LS_SURAH = 'hifz-surahs-v1', LS_OLD = 'quran-grid-world-v1';
 const $ = id => document.getElementById(id);
 
-/* ---------------- world state ---------------- */
-function defaultCell(){ return { photo:null, height:0, ayah:null, visited:false, found:false }; }
-function defaultWorld(){
-  const cells = [];
-  for(let i=0;i<GRID*GRID;i++) cells.push(defaultCell());
-  const w = { version:1, cells };
-  // small starter landscape so the grid isn't empty on first run
-  [[5,5],[6,5],[7,5],[7,6],[6,7],[5,7],[4,7]].forEach(([r,c],i)=>{
-    const cell = w.cells[r*GRID+c]; cell.height = 0.4 + (i%3)*0.2;
-  });
-  return w;
-}
-function loadWorld(){
+/* ---------- juz boundaries [surah, ayah] (standard Hafs) ---------- */
+const JUZ_STARTS = [
+ [1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,82],[6,111],[7,88],[8,41],
+ [9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],
+ [29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
+
+/* ---------- offline fallback surah metadata "name|ayahs|type" ---------- */
+const FALLBACK_SURAHS = (
+"al-Fatihah|7|M,al-Baqarah|286|D,Ali 'Imran|200|D,an-Nisa|176|D,al-Ma'idah|120|D," +
+"al-An'am|165|M,al-A'raf|206|M,al-Anfal|75|D,at-Tawbah|129|D,Yunus|109|M," +
+"Hud|123|M,Yusuf|111|M,ar-Ra'd|43|D,Ibrahim|52|M,al-Hijr|99|M,an-Nahl|128|M," +
+"al-Isra|111|M,al-Kahf|110|M,Maryam|98|M,Ta-Ha|135|M,al-Anbiya|112|M," +
+"al-Hajj|78|D,al-Mu'minun|118|M,an-Nur|64|D,al-Furqan|77|M,ash-Shu'ara|227|M," +
+"an-Naml|93|M,al-Qasas|88|M,al-'Ankabut|69|M,ar-Rum|60|M,Luqman|34|M," +
+"as-Sajdah|30|M,al-Ahzab|73|D,Saba|54|M,Fatir|45|M,Ya-Sin|83|M,as-Saffat|182|M," +
+"Sad|88|M,az-Zumar|75|M,Ghafir|85|M,Fussilat|54|M,ash-Shura|53|M," +
+"az-Zukhruf|89|M,ad-Dukhan|59|M,al-Jathiyah|37|M,al-Ahqaf|35|M,Muhammad|38|D," +
+"al-Fath|29|D,al-Hujurat|18|D,Qaf|45|M,adh-Dhariyat|60|M,at-Tur|49|M," +
+"an-Najm|62|M,al-Qamar|55|M,ar-Rahman|78|D,al-Waqi'ah|96|M,al-Hadid|29|D," +
+"al-Mujadilah|22|D,al-Hashr|24|D,al-Mumtahanah|13|D,as-Saff|14|D,al-Jumu'ah|11|D," +
+"al-Munafiqun|11|D,at-Taghabun|18|D,at-Talaq|12|D,at-Tahrim|12|D,al-Mulk|30|M," +
+"al-Qalam|52|M,al-Haqqah|52|M,al-Ma'arij|44|M,Nuh|28|M,al-Jinn|28|M," +
+"al-Muzzammil|20|M,al-Muddaththir|56|M,al-Qiyamah|40|M,al-Insan|31|D," +
+"al-Mursalat|50|M,an-Naba|40|M,an-Nazi'at|46|M,'Abasa|42|M,at-Takwir|29|M," +
+"al-Infitar|19|M,al-Mutaffifin|36|M,al-Inshiqaq|25|M,al-Buruj|22|M," +
+"at-Tariq|17|M,al-A'la|19|M,al-Ghashiyah|26|M,al-Fajr|30|M,al-Balad|20|M," +
+"ash-Shams|15|M,al-Layl|21|M,ad-Duha|11|M,ash-Sharh|8|M,at-Tin|8|M," +
+"al-'Alaq|19|M,al-Qadr|5|M,al-Bayyinah|8|D,az-Zalzalah|8|D,al-'Adiyat|11|M," +
+"al-Qari'ah|11|M,at-Takathur|8|M,al-'Asr|3|M,al-Humazah|9|M,al-Fil|5|M," +
+"Quraysh|4|M,al-Ma'un|7|M,al-Kawthar|3|M,al-Kafirun|6|M,an-Nasr|3|D," +
+"al-Lahab|5|M,al-Ikhlas|4|M,al-Falaq|5|M,an-Nas|6|M"
+).split(',').map(s=>{ const [englishName,ayahs,type]=s.split('|');
+    return { number:0, englishName, arabicName:'', ayahs:+ayahs,
+             revelationType: type==='D' ? 'Medinan' : 'Meccan' }; });
+
+/* ---------- state ---------- */
+function defaultState(){ return { version:1, hifz:{}, pins:{}, photos:{}, best:0 }; }
+function migrateV1(){
+  const old = defaultState();
   try{
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_OLD);
     if(raw){
       const w = JSON.parse(raw);
-      if(w && Array.isArray(w.cells) && w.cells.length === GRID*GRID) return w;
+      if(w && Array.isArray(w.cells)){
+        w.cells.forEach((c,i)=>{
+          if(c && c.photo) old.photos[i] = c.photo;
+          if(c && c.ayah)  old.pins[i]   = c.ayah;
+        });
+      }
     }
-  }catch(e){ console.warn('load failed', e); }
-  return defaultWorld();
+  }catch(e){}
+  return old;
 }
-let world = loadWorld();
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const s = JSON.parse(raw);
+      if(s && s.hifz) { s.pins = s.pins||{}; s.photos = s.photos||{}; return s; } }
+  }catch(e){}
+  return migrateV1();
+}
+let state = loadState();
 let saveTimer = null;
-function saveWorld(){
+function saveState(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(world)); }
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
     catch(e){ toast('⚠ Could not save (storage full?). Use Export.'); }
   }, 400);
 }
 
-/* ---------------- three.js setup ---------------- */
+/* ---------- live surah metadata (API + cache + fallback) ---------- */
+let surahs = [];                 // index 0 => surah 1
+let juzCounts = [];              // ayahs per juz
+let juzOfCache = {};             // "s:a" -> juz
+function juzOf(s, a){
+  const k = s+':'+a;
+  if(juzOfCache[k]) return juzOfCache[k];
+  let j = 1;
+  for(let i=1;i<JUZ_STARTS.length;i++){
+    const [js, ja] = JUZ_STARTS[i];
+    if(js < s || (js===s && ja <= a)) j = i+1; else break;
+  }
+  juzOfCache[k] = j; return j;
+}
+function computeJuzCounts(){
+  juzCounts = new Array(30).fill(0);
+  for(const s of surahs)
+    for(let a=1;a<=s.ayahs;a++) juzCounts[juzOf(s.number,a)-1]++;
+}
+async function loadSurahs(force){
+  if(!force){
+    try{
+      const raw = localStorage.getItem(LS_SURAH);
+      if(raw){ const d = JSON.parse(raw);
+        if(Array.isArray(d) && d.length===114){ surahs = d; computeJuzCounts();
+          $('quran-data-info').innerHTML = 'Using cached live surah data.'; return; } }
+    }catch(e){}
+  }
+  try{
+    const res = await fetch('https://api.alquran.cloud/v1/surah');
+    const data = await res.json();
+    if(data.code===200 && data.data.length===114){
+      surahs = data.data.map(s=>({
+        number:s.number, englishName:s.englishName, arabicName:s.name.replace('سُورَةُ ',''),
+        ayahs:s.numberOfAyahs, revelationType:s.revelationType }));
+      try{ localStorage.setItem(LS_SURAH, JSON.stringify(surahs)); }catch(e){}
+      $('quran-data-info').innerHTML = '✅ Live surah data loaded from the Quran API.';
+      computeJuzCounts();
+      return;
+    }
+    throw new Error('bad payload');
+  }catch(e){
+    surahs = FALLBACK_SURAHS.map((s,i)=>({...s, number:i+1}));
+    computeJuzCounts();
+    $('quran-data-info').innerHTML =
+      '⚠ API unreachable — using built-in offline Quran metadata (114 surahs).';
+  }
+}
+
+/* ---------- hifz helpers ---------- */
+function hifz(n){                              // n = surah number 1..114
+  if(!state.hifz[n])
+    state.hifz[n] = { f:'0'.repeat(surahs[n-1].ayahs), s:3, t:0 };
+  const h = state.hifz[n];
+  if(h.f.length !== surahs[n-1].ayahs)
+    h.f = (h.f + '0'.repeat(surahs[n-1].ayahs)).slice(0, surahs[n-1].ayahs);
+  return h;
+}
+const REVIEW_DAYS = [2,4,7,15,30];
+function fracMemorized(n){
+  const h = hifz(n);
+  let c=0; for(const ch of h.f) if(ch==='1') c++;
+  return c / surahs[n-1].ayahs;
+}
+function memorizedCount(n){
+  const h = hifz(n); let c=0;
+  for(const ch of h.f) if(ch==='1') c++;
+  return c;
+}
+function isDue(n){
+  const h = hifz(n);
+  if(fracMemorized(n) === 0) return false;
+  if(!h.t) return true;                        // never reviewed
+  return Date.now() - h.t > REVIEW_DAYS[h.s-1]*86400000;
+}
+function memorizedInJuz(j){
+  let c = 0;
+  for(const s of surahs){
+    const h = state.hifz[s.number];
+    if(!h || h.f.indexOf('1')<0) continue;
+    for(let a=1;a<=s.ayahs;a++)
+      if(h.f[a-1]==='1' && juzOf(s.number,a)===j) c++;
+  }
+  return c;
+}
+function totalMemorized(){
+  let c=0; for(let n=1;n<=114;n++) if(state.hifz[n]) c += memorizedCount(n);
+  return c;
+}
+const TOTAL_AYAHS = 6236;
+
+/* ---------- three.js scene ---------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0f17);
-scene.fog = new THREE.Fog(0x0b0f17, 26, 70);
-
-const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 300);
+scene.fog = new THREE.Fog(0x0b0f17, 28, 80);
+const camera3d = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 300);
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 $('scene').appendChild(renderer.domElement);
-
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const dirLight = new THREE.DirectionalLight(0xfff2dd, 0.9);
-dirLight.position.set(12, 24, 10);
-scene.add(dirLight);
+dirLight.position.set(12, 26, 10); scene.add(dirLight);
 
-/* ground + grid lines */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120,120),
-  new THREE.MeshStandardMaterial({ color:0x10151f, roughness:1 })
-);
-ground.rotation.x = -Math.PI/2; ground.position.y = -0.02;
-ground.name='ground';
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(140,140),
+  new THREE.MeshStandardMaterial({ color:0x10151f, roughness:1 }));
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.02; ground.name='ground';
 scene.add(ground);
-scene.add(new THREE.GridHelper(GRID, GRID, 0x2c3a55, 0x1c2536));
+scene.add(new THREE.GridHelper(GRID_W, GRID_W, 0x2c3a55, 0x1c2536));
 
-/* orbit camera (simple custom controls) */
-let camTheta = Math.PI*0.25, camPhi = Math.PI*0.32, camDist = 20;
-const camTarget = new THREE.Vector3(0, 0, 0);
+/* orbit camera */
+let camTheta = Math.PI*0.25, camPhi = Math.PI*0.30, camDist = 22;
+const camTarget = new THREE.Vector3(0,0,0);
 function updateCamera(){
   camPhi = Math.max(0.18, Math.min(1.4, camPhi));
   camDist = Math.max(7, Math.min(60, camDist));
-  camera.position.set(
+  camera3d.position.set(
     camTarget.x + camDist*Math.sin(camPhi)*Math.cos(camTheta),
     camTarget.y + camDist*Math.cos(camPhi),
-    camTarget.z + camDist*Math.sin(camPhi)*Math.sin(camTheta)
-  );
-  camera.lookAt(camTarget);
+    camTarget.z + camDist*Math.sin(camPhi)*Math.sin(camTheta));
+  camera3d.lookAt(camTarget);
 }
 updateCamera();
 
-/* ---------------- world meshes ---------------- */
+/* ---------- grid mapping algorithm ----------
+   cell index i (0..143), row-major on a 12x12 grid:
+     i < 114  ->  surah (i+1),  height encodes ayah count
+     i >= 114 ->  juz (i-113),  height encodes memorization progress
+-------------------------------------------------- */
+function cellXZ(i){
+  return { x:(i%GRID_W) - GRID_W/2 + 0.5,
+           z:Math.floor(i/GRID_W) - GRID_H/2 + 0.5 };
+}
+function isJuzCell(i){ return i >= JUZ_CELL_BASE; }
+function cellEntity(i){
+  if(isJuzCell(i)){
+    const j = i - JUZ_CELL_BASE + 1;
+    return { kind:'juz', juz:j,
+      total:juzCounts[j-1]||1, memorized:memorizedInJuz(j),
+      label:'Juz '+j };
+  }
+  const n = i+1, s = surahs[n-1];
+  return { kind:'surah', n, surah:s,
+    label:`${n}. ${s.englishName} (${s.arabicName||''})` };
+}
+function cellHeight(i){
+  const e = cellEntity(i);
+  if(e.kind==='juz') return 0.15 + 0.55*(e.memorized/(e.total||1));
+  return 0.2 + Math.min(2.0, Math.log2(1+e.surah.ayahs)*0.22);
+}
+
+/* ---------- world meshes ---------- */
 const cellGroup = new THREE.Group(); scene.add(cellGroup);
 const gemGroup  = new THREE.Group(); scene.add(gemGroup);
-const textureCache = new Map();   // cellIndex -> THREE.Texture
+const labelGroup= new THREE.Group(); scene.add(labelGroup);
+let duePulseList = [];
+const textureCache = new Map();
+let showLabels = true;
 
-function cellXZ(i){
-  const row = Math.floor(i/GRID), col = i%GRID;
-  return { x: col - GRID/2 + 0.5, z: row - GRID/2 + 0.5 };
+function lerpColor(a, b, t){
+  return (new THREE.Color(a)).lerp(new THREE.Color(b), t);
 }
-function cellHeight(i){ return world.cells[i].height || 0; }
-
 function getPhotoTexture(i){
-  if(!world.cells[i].photo) return null;
+  if(!state.photos[i]) return null;
   if(textureCache.has(i)) return textureCache.get(i);
   const tex = new THREE.Texture();
   tex.image = new Image();
   tex.image.onload = ()=>{ tex.needsUpdate = true; };
-  tex.image.src = world.cells[i].photo;
+  tex.image.src = state.photos[i];
   textureCache.set(i, tex);
   return tex;
 }
-
+const labelTexCache = new Map();
+function numberLabelSprite(text){
+  if(!labelTexCache.has(text)){
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.font = 'bold 64px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.lineWidth = 8; ctx.strokeStyle = '#0b0f17';
+    ctx.strokeText(text, 64, 64); ctx.fillStyle = '#dbe4f5';
+    ctx.fillText(text, 64, 64);
+    labelTexCache.set(text, new THREE.CanvasTexture(c));
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map:labelTexCache.get(text), transparent:true, depthWrite:false }));
+  sp.scale.set(0.55, 0.55, 1);
+  return sp;
+}
 function rebuildWorld(){
-  cellGroup.clear(); gemGroup.clear();
-  for(let i=0;i<GRID*GRID;i++){
-    const c = world.cells[i];
+  cellGroup.clear(); gemGroup.clear(); labelGroup.clear();
+  duePulseList = [];
+  for(let i=0;i<CELLS;i++){
     const {x,z} = cellXZ(i);
-    if(c.height > 0){
-      const h = c.height;
-      const sideMat = new THREE.MeshStandardMaterial({
-        color: c.photo ? 0x35425e : 0x2a3550, roughness:0.85 });
-      const topMat = c.photo && getPhotoTexture(i)
-        ? new THREE.MeshStandardMaterial({ map:getPhotoTexture(i), roughness:0.9 })
-        : new THREE.MeshStandardMaterial({ color:0x3a4a6d, roughness:0.9 });
-      const bottomMat = new THREE.MeshStandardMaterial({ color:0x1a2233 });
-      const box = new THREE.Mesh(
-        new THREE.BoxGeometry(0.98, h, 0.98),
-        [sideMat, sideMat, topMat, bottomMat, sideMat, sideMat]
-      );
-      box.position.set(x, h/2, z);
-      cellGroup.add(box);
+    const h = cellHeight(i);
+    const e = cellEntity(i);
+    /* side color: Meccan / Medinan / juz */
+    const sideColor = e.kind==='juz' ? 0x6b5426 :
+      (e.surah.revelationType==='Medinan' ? 0x5e4938 : 0x3a4a6d);
+    /* top: photo (memory palace) or progress color */
+    let topMat;
+    const photoTex = getPhotoTexture(i);
+    if(photoTex){
+      topMat = new THREE.MeshStandardMaterial({ map:photoTex, roughness:0.9 });
+    }else if(e.kind==='juz'){
+      const frac = e.memorized/(e.total||1);
+      topMat = new THREE.MeshStandardMaterial({
+        color: frac>=1 ? 0x2ecc71 : lerpColor(0x4a3f1e, 0x8f7a2e, frac), roughness:0.7 });
+    }else{
+      const frac = fracMemorized(e.n);
+      topMat = new THREE.MeshStandardMaterial({
+        color: frac>=1 ? 0x2ecc71 : lerpColor(0x2a3550, 0x36b877, frac),
+        roughness:0.7 });
     }
-    if(c.ayah){
-      const gem = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.14),
-        new THREE.MeshStandardMaterial({
-          color:0xe6b455, emissive:0x8a6420, metalness:0.6, roughness:0.3 })
-      );
-      gem.position.set(x, cellHeight(i)+0.45, z);
-      gem.userData.baseY = gem.position.y;
+    const sideMat = new THREE.MeshStandardMaterial({ color:sideColor, roughness:0.85 });
+    if(e.kind==='surah' && isDue(e.n)){
+      sideMat.emissive = new THREE.Color(0x991f1f);
+      duePulseList.push(sideMat);
+    }
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.94, h, 0.94),
+      [sideMat, sideMat, topMat,
+       new THREE.MeshStandardMaterial({ color:0x141a28 }), sideMat, sideMat]);
+    box.position.set(x, h/2, z);
+    cellGroup.add(box);
+    /* label sprite */
+    const label = e.kind==='juz' ? 'J'+e.juz : String(e.n);
+    const sp = numberLabelSprite(label);
+    sp.position.set(x, h + 0.42, z);
+    sp.visible = showLabels;
+    labelGroup.add(sp);
+    /* pinned ayah gem */
+    if(state.pins[i]){
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.13),
+        new THREE.MeshStandardMaterial({ color:0xe6b455,
+          emissive:0x8a6420, metalness:0.6, roughness:0.3 }));
+      gem.position.set(x, h+0.62, z);
+      gem.userData.baseY = h+0.62;
       gemGroup.add(gem);
     }
   }
   refreshHud();
+  refreshWorldTab();
 }
 
 /* selection highlight */
 const selBox = new THREE.LineSegments(
-  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001,1,1.001)),
-  new THREE.LineBasicMaterial({ color:0x4f8cff })
-);
-selBox.visible = false;
-scene.add(selBox);
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),
+  new THREE.LineBasicMaterial({ color:0x4f8cff }));
+selBox.visible = false; scene.add(selBox);
 let selectedIndex = -1;
 function selectCell(i){
   selectedIndex = i;
@@ -398,123 +617,237 @@ function selectCell(i){
   const h = Math.max(cellHeight(i), 0.02);
   selBox.position.set(x, h/2, z);
   selBox.scale.set(1, h, 1);
+  selBox.material.color.set(0x4f8cff);
   selBox.visible = true;
-  refreshBuildPanel();
+  refreshHifzPanel();
+}
+function flashCell(i, color){
+  const {x,z} = cellXZ(i);
+  const h = Math.max(cellHeight(i), 0.02);
+  selBox.position.set(x, h/2, z);
+  selBox.scale.set(1, h, 1);
+  selBox.material.color.set(color);
+  selBox.visible = true;
 }
 
-/* ---------------- player (game) ---------------- */
+/* ---------- player ---------- */
 const player = new THREE.Group();
-const body = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.16,0.16,0.42,16),
+const pbody = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.4,16),
   new THREE.MeshStandardMaterial({ color:0x4f8cff, roughness:0.5 }));
-body.position.y = 0.21;
-const head = new THREE.Mesh(
-  new THREE.SphereGeometry(0.13,16,16),
+pbody.position.y = 0.2;
+const phead = new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16),
   new THREE.MeshStandardMaterial({ color:0xf0d9b5 }));
-head.position.y = 0.55;
-player.add(body, head);
-player.visible = false;
-scene.add(player);
+phead.position.y = 0.52;
+player.add(pbody, phead);
+player.visible = false; scene.add(player);
+let playerCell = 0, moving = false, moveTarget = null;
 
-let playing = false, score = 0, playerCell = -1, moving = false, moveTarget = null;
-
-function startPlay(){
-  const ayahs = world.cells.filter(c=>c.ayah).length;
-  if(ayahs === 0){ toast('Place at least one ayah first (Build tab) — attach gems to cells.'); return; }
-  playing = true; score = 0;
-  playerCell = Math.floor(GRID/2)*GRID + Math.floor(GRID/2);
+function placePlayer(i){
+  const {x,z} = cellXZ(i);
+  player.position.set(x, cellHeight(i)+0.04, z);
+}
+function tryMove(dr,dc){
+  if(!quiz.active && !player.visible) placePlayerIfFirstMove();
+  const row = Math.floor(playerCell/GRID_W)+dr, col = (playerCell%GRID_W)+dc;
+  if(row<0||row>=GRID_H||col<0||col>=GRID_W) return;
+  playerCell = row*GRID_W+col; moving = true;
   const {x,z} = cellXZ(playerCell);
-  player.position.set(x, cellHeight(playerCell)+0.05, z);
-  player.visible = true;
-  markVisited(playerCell);
-  $('score-hud').style.display = 'block';
-  refreshHud(); refreshPlayStatus();
-  toast('🎮 Explore! Move with WASD / arrows. Find the golden gems.');
+  moveTarget = new THREE.Vector3(x, cellHeight(playerCell)+0.04, z);
 }
-function endPlay(){
-  playing = false; player.visible = false;
-  $('score-hud').style.display = 'none';
-  refreshPlayStatus();
+function placePlayerIfFirstMove(){
+  player.visible = true; placePlayer(playerCell);
 }
-function markVisited(i){
-  const c = world.cells[i];
-  if(!c.visited){ c.visited = true; score += 10; saveWorld(); }
-  if(c.ayah && !c.found){
-    c.found = true; score += 50; saveWorld();
-    openAyahModal(c.ayah);
-    const remaining = world.cells.filter(k=>k.ayah && !k.found).length;
-    if(remaining === 0) showWin();
-  }
-  refreshHud();
-}
-function tryMove(dr, dc){
-  if(!playing || moving) return;
-  const row = Math.floor(playerCell/GRID)+dr, col = (playerCell%GRID)+dc;
-  if(row<0||row>=GRID||col<0||col>=GRID) return;
-  const next = row*GRID+col;
-  moving = true; playerCell = next;
-  const {x,z} = cellXZ(next);
-  moveTarget = new THREE.Vector3(x, cellHeight(next)+0.05, z);
-}
-function showWin(){
-  $('win-text').textContent =
-    `You explored the world and found every ayah. Final score: ${score} points.`;
-  $('win-overlay').classList.add('open');
+function handleArrival(){
+  if(quiz.active && quiz.awaitingAnswer) submitAnswer(playerCell, false);
 }
 
-/* ---------------- ayah fetching ---------------- */
+/* ---------- Quran API: ayah ---------- */
 async function fetchAyah(surah, ayah){
-  const url = `https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/editions/quran-uthmani,en.sahih`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error('API '+res.status);
+  const res = await fetch(
+    `https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/editions/quran-uthmani,en.sahih`);
   const data = await res.json();
-  if(data.code!==200 || !data.data || data.data.length<2) throw new Error('Ayah not found');
+  if(data.code!==200 || !data.data || data.data.length<2) throw new Error('not found');
   const ar = data.data[0], tr = data.data[1];
-  return {
-    surah, ayah, globalNumber: ar.number,
-    arabic: ar.text,
-    translation: (tr.text||'').replace(/^بِسْمِ.*?\s*/,''),
-    audio: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${ar.number}.mp3`
-  };
+  return { surah, ayah, globalNumber:ar.number, arabic:ar.text,
+    translation:(tr.text||''),
+    surahName: surahs[surah-1] ? surahs[surah-1].englishName : 'Surah '+surah,
+    audio:`https://cdn.islamic.network/quran/audio/128/ar.alafasy/${ar.number}.mp3` };
 }
-function openAyahModal(a){
-  $('ayah-ref').textContent = `📖 ${a.surah}:${a.ayah}`;
+
+/* ---------- ayah modal ---------- */
+let modalAyah = null;
+function openAyahModal(a, note){
+  modalAyah = a;
+  $('ayah-ref').textContent = `📖 ${a.surah}:${a.ayah} — ${a.surahName}`;
   $('ayah-arabic').textContent = a.arabic;
   $('ayah-translation').textContent = a.translation;
   $('ayah-link').href = `https://quran.com/${a.surah}/${a.ayah}`;
+  $('ayah-answer-note').innerHTML = note || '';
+  $('btn-toggle-memorized').textContent = isAyahMemorized(a) ? '✅ Memorized' : 'Mark memorized';
   $('ayah-modal').classList.add('open');
-  currentAudioAyah = a;
 }
-let currentAudioAyah = null;
-$('btn-audio').onclick = ()=>{
-  if(currentAudioAyah) new Audio(currentAudioAyah.audio).play();
+function isAyahMemorized(a){
+  return a.surah<=114 && hifz(a.surah).f[a.ayah-1]==='1';
+}
+$('btn-toggle-memorized').onclick = ()=>{
+  if(!modalAyah) return;
+  const h = hifz(modalAyah.surah);
+  h.f = h.f.substring(0,modalAyah.ayah-1) +
+        (h.f[modalAyah.ayah-1]==='1'?'0':'1') + h.f.substring(modalAyah.ayah);
+  h.t = Date.now(); saveState(); rebuildWorld(); refreshHifzPanel();
+  $('btn-toggle-memorized').textContent = isAyahMemorized(modalAyah) ? '✅ Memorized' : 'Mark memorized';
+  toast(isAyahMemorized(modalAyah) ? 'Ayah marked memorized 🎉' : 'Ayah unmarked.');
 };
 $('btn-close-ayah').onclick = ()=> $('ayah-modal').classList.remove('open');
+$('btn-audio').onclick = ()=>{ if(modalAyah) new Audio(modalAyah.audio).play(); };
 
-/* ---------------- camera capture ---------------- */
+/* ---------- Audio Quest (memorization game) ---------- */
+const quiz = { active:false, awaitingAnswer:false, score:0, streak:0, ayah:null, audio:null };
+function memorizedAyahPool(){
+  const pool = [];
+  for(let n=1;n<=114;n++){
+    const h = state.hifz[n];
+    if(!h || h.f.indexOf('1')<0) continue;
+    for(let a=1;a<=h.f.length;a++) if(h.f[a-1]==='1') pool.push({surah:n, ayah:a});
+  }
+  return pool;
+}
+function dueSurahPool(){
+  const list = [];
+  for(let n=1;n<=114;n++) if(isDue(n)) list.push(n);
+  return list;
+}
+function pickQuestAyah(){
+  const due = dueSurahPool();
+  // 70% of the time, prefer an ayah from a due-for-review surah
+  if(due.length && Math.random() < 0.7){
+    const n = due[Math.floor(Math.random()*due.length)];
+    const h = hifz(n);
+    const flags = [];
+    for(let a=1;a<=h.f.length;a++) if(h.f[a-1]==='1') flags.push(a);
+    const a = flags[Math.floor(Math.random()*flags.length)];
+    return { surah:n, ayah:a };
+  }
+  const pool = memorizedAyahPool();
+  if(!pool.length) return null;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+async function nextQuestion(){
+  const pick = pickQuestAyah();
+  if(!pick){ stopQuiz(); toast('No memorized ayahs yet — mark some in the 📖 Hifz tab.'); return; }
+  quiz.awaitingAnswer = true;
+  $('quiz-question').textContent = 'Loading ayah…';
+  $('quiz-hint-ar').style.display = 'none';
+  $('btn-next').style.display = 'none';
+  try{
+    quiz.ayah = await fetchAyah(pick.surah, pick.ayah);
+  }catch(e){
+    toast('⚠ Could not fetch the ayah (check internet). Skipping.');
+    nextQuestion(); return;
+  }
+  const h = hifz(pick.surah);
+  $('quiz-question').innerHTML =
+    `“${quiz.ayah.translation.slice(0,180)}${quiz.ayah.translation.length>180?'…':''}”`+
+    `<br><span style="color:var(--muted)">Which surah is this? Walk (or click) to answer.`+
+    `${isDue(pick.surah)?' · <span style="color:#d66">review due</span>':''}</span>`;
+  if($('quiz-mode').value === 'audio'){
+    quiz.audio = new Audio(quiz.ayah.audio);
+    quiz.audio.play().catch(()=>{ toast('Tap 🔊 Replay (browser blocked autoplay).'); });
+  }
+}
+function startQuiz(){
+  if(!memorizedAyahPool().length){
+    toast('Mark some ayahs as memorized first (📖 Hifz tab).'); return;
+  }
+  quiz.active = true; quiz.score = 0; quiz.streak = 0; quiz.awaitingAnswer = true;
+  playerCell = 0; placePlayer(0); player.visible = true;
+  $('quiz-bar').classList.add('open');
+  $('score-hud').style.display = 'block';
+  refreshQuizHud(); refreshQuizStatus();
+  nextQuestion();
+}
+function stopQuiz(){
+  quiz.active = false; quiz.awaitingAnswer = false;
+  if(quiz.audio){ quiz.audio.pause(); quiz.audio = null; }
+  $('quiz-bar').classList.remove('open');
+  $('score-hud').style.display = 'none';
+  refreshQuizStatus();
+}
+function submitAnswer(cellIdx, byClick){
+  if(!quiz.active || !quiz.awaitingAnswer || !quiz.ayah) return;
+  if(isJuzCell(cellIdx)){
+    if(byClick) toast('That’s a juz cell — answer on the surah side of the map.');
+    return;
+  }
+  const picked = cellIdx+1, right = quiz.ayah.surah;
+  const h = hifz(right);
+  quiz.awaitingAnswer = false;
+  if(picked === right){
+    const pts = 50 + h.s*10 + quiz.streak*5;
+    quiz.score += pts; quiz.streak++;
+    h.t = Date.now(); h.s = Math.min(5, h.s+1);        // strengthen recall
+    openAyahModal(quiz.ayah, `✅ <b style="color:var(--green)">Correct! +${pts} pts</b> — `+
+      `review interval now ${REVIEW_DAYS[h.s-1]} days.`);
+    toast(`✅ MashaAllah! +${pts}`);
+  }else{
+    quiz.streak = 0; h.s = Math.max(1, h.s-1); h.t = Date.now();
+    flashCell(right-1, 0xe6b455);
+    openAyahModal(quiz.ayah, `❌ That was <b>${picked}. `+
+      `${surahs[picked-1].englishName}</b>. The ayah is from `+
+      `<b style="color:var(--gold)">${right}. ${quiz.ayah.surahName}</b>. `+
+      `Interval shortened to ${REVIEW_DAYS[h.s-1]} days.`);
+  }
+  if(quiz.score > state.best){ state.best = quiz.score; }
+  saveState(); rebuildWorld(); refreshQuizHud();
+  if(quiz.audio) quiz.audio.pause();
+  $('btn-next').style.display = 'inline-block';
+}
+$('btn-start-quiz').onclick = startQuiz;
+$('btn-stop-quiz').onclick = stopQuiz;
+$('btn-replay').onclick = ()=>{
+  if(quiz.ayah){ quiz.audio = new Audio(quiz.ayah.audio); quiz.audio.play(); }
+};
+$('btn-hint').onclick = ()=>{
+  if(!quiz.ayah) return;
+  const el = $('quiz-hint-ar');
+  el.style.display = 'block';
+  el.textContent = quiz.ayah.arabic.split(' ').slice(0,4).join(' ') + ' …';
+};
+$('btn-next').onclick = ()=>{ $('ayah-modal').classList.remove('open'); nextQuestion(); };
+$('btn-skip').onclick = ()=>{ if(quiz.active){ quiz.awaitingAnswer=true; nextQuestion(); } };
+function refreshQuizHud(){
+  $('q-score').textContent = quiz.score;
+  $('q-streak').textContent = quiz.streak;
+  $('q-best').textContent = state.best;
+}
+function refreshQuizStatus(){
+  $('quiz-status').innerHTML = quiz.active
+    ? `▶ Running — score <b>${quiz.score}</b>, streak <b>${quiz.streak}</b>.`
+    : (memorizedAyahPool().length
+      ? `Ready — <b>${memorizedAyahPool().length}</b> memorized ayahs in the pool, `+
+        `<b>${dueSurahPool().length}</b> surah${dueSurahPool().length===1?'':'s'} due for review.`
+      : 'Quest not running. Mark some ayahs as memorized (📖 tab) first.');
+}
+
+/* ---------- camera (memory palace) ---------- */
 let camStream = null;
 async function openCamera(){
-  if(selectedIndex < 0){ toast('Select a grid cell first.'); return; }
+  if(selectedIndex<0){ toast('Select a cell first.'); return; }
   try{
     camStream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:1280} },
-      audio:false
-    });
+      audio:false });
     $('cam-video').srcObject = camStream;
     $('cam-modal').classList.add('open');
-  }catch(e){
-    toast('⚠ Camera unavailable — use "Upload photo instead".');
-  }
+  }catch(e){ toast('⚠ Camera unavailable — use Upload photo.'); }
 }
 function closeCamera(){
   $('cam-modal').classList.remove('open');
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
 }
 function captureCell(){
-  const v = $('cam-video');
-  const dataUrl = frameToSquareDataUrl(v, 256);
-  setCellPhoto(dataUrl);
-  closeCamera();
+  const dataUrl = frameToSquareDataUrl($('cam-video'), 256);
+  setCellPhoto(dataUrl); closeCamera();
 }
 function frameToSquareDataUrl(src, size){
   const canvas = document.createElement('canvas');
@@ -528,32 +861,104 @@ function frameToSquareDataUrl(src, size){
   return canvas.toDataURL('image/jpeg', 0.82);
 }
 function setCellPhoto(dataUrl){
-  if(selectedIndex < 0) return;
-  const c = world.cells[selectedIndex];
-  c.photo = dataUrl;
-  if(c.height <= 0) c.height = 0.4;
+  if(selectedIndex<0) return;
+  state.photos[selectedIndex] = dataUrl;
   textureCache.delete(selectedIndex);
-  saveWorld(); rebuildWorld(); refreshBuildPanel();
-  toast(`✅ Cell ${selectedIndex%GRID+1},${Math.floor(selectedIndex/GRID)+1} captured into the world.`);
+  saveState(); rebuildWorld(); refreshHifzPanel();
+  toast('✅ Place captured into this cell (memory palace anchor).');
 }
 
-/* ---------------- UI wiring ---------------- */
+/* ---------- UI: tabs ---------- */
 function switchTab(name){
   document.querySelectorAll('#tabs button').forEach(b=>
     b.classList.toggle('active', b.dataset.tab===name));
-  ['build','play','world'].forEach(t=>
+  ['hifz','play','world'].forEach(t=>
     $('tab-'+t).style.display = (t===name)?'block':'none');
+  if(name==='play') refreshQuizStatus();
   if(name==='world') refreshWorldTab();
-  if(name==='play') refreshPlayStatus();
-  if(name==='build') refreshBuildPanel();
+  if(name==='hifz') refreshHifzPanel();
 }
 document.querySelectorAll('#tabs button').forEach(b=>
   b.onclick = ()=>switchTab(b.dataset.tab));
 
+/* ---------- UI: hifz panel ---------- */
+function refreshHifzPanel(){
+  if(selectedIndex<0){
+    $('selected-info').innerHTML = 'Click a cell on the map.';
+    $('ayah-chips').innerHTML = ''; $('pin-info').innerHTML = '';
+    return;
+  }
+  const e = cellEntity(selectedIndex);
+  if(e.kind==='juz'){
+    const pct = e.total ? Math.round(100*e.memorized/e.total) : 0;
+    $('selected-info').innerHTML =
+      `<b>${e.label}</b> — ${e.memorized}/${e.total} ayahs memorized (<b>${pct}%</b>)`;
+    $('ayah-chips').innerHTML =
+      `<span style="color:var(--muted);font-size:12px">Juz cells track the surahs inside them. `+
+      `Mark ayahs on surah cells.</span>`;
+  }else{
+    const s = e.surah, h = hifz(e.n);
+    const pct = Math.round(100*fracMemorized(e.n));
+    const due = isDue(e.n);
+    $('selected-info').innerHTML =
+      `<b>${e.n}. ${s.englishName}</b>${s.arabicName?` — ${s.arabicName}`:''}<br>`+
+      `${s.revelationType} · ${s.ayahs} ayahs · `+
+      `memorized <b style="color:var(--green)">${memorizedCount(e.n)}/${s.ayahs} (${pct}%)</b>`+
+      `${due?` · <span style="color:#d66"><b>review due</b></span>`:''}`+
+      `${state.photos[selectedIndex]?' · 📷 memory palace':''}`;
+    /* chips */
+    const chips = [];
+    for(let a=1;a<=s.ayahs;a++)
+      chips.push(`<span class="chip${h.f[a-1]==='1'?' on':''}" data-a="${a}">${a}</span>`);
+    $('ayah-chips').innerHTML = chips.join('');
+    $('ayah-chips').querySelectorAll('.chip').forEach(ch=>
+      ch.onclick = ()=>{
+        const a = +ch.dataset.a;
+        h.f = h.f.substring(0,a-1)+(h.f[a-1]==='1'?'0':'1')+h.f.substring(a);
+        if(h.f[a-1]==='1') h.t = Date.now();
+        saveState(); rebuildWorld(); refreshHifzPanel();
+      });
+    $('strength').value = h.s;
+  }
+  const pin = state.pins[selectedIndex];
+  $('pin-info').innerHTML = pin
+    ? `📌 Pinned: <b>${pin.surah}:${pin.ayah}</b> — “${(pin.translation||'').slice(0,80)}…”` : '';
+}
+$('btn-all').onclick = ()=>{
+  if(selectedIndex<0 || isJuzCell(selectedIndex)) return;
+  const n = selectedIndex+1, h = hifz(n);
+  h.f = '1'.repeat(h.f.length); h.t = Date.now();
+  saveState(); rebuildWorld(); refreshHifzPanel();
+  toast(`All ayahs of ${surahs[n-1].englishName} marked memorized. 🎉`);
+};
+$('btn-none').onclick = ()=>{
+  if(selectedIndex<0 || isJuzCell(selectedIndex)) return;
+  const n = selectedIndex+1, h = hifz(n);
+  h.f = '0'.repeat(h.f.length);
+  saveState(); rebuildWorld(); refreshHifzPanel();
+};
+$('btn-reviewed').onclick = ()=>{
+  if(selectedIndex<0 || isJuzCell(selectedIndex)) return;
+  hifz(selectedIndex+1).t = Date.now();
+  saveState(); rebuildWorld(); refreshHifzPanel();
+  toast('Reviewed today — review timer reset. ✅');
+};
+$('strength').onchange = e=>{
+  if(selectedIndex<0 || isJuzCell(selectedIndex)) return;
+  hifz(selectedIndex+1).s = +e.target.value;
+  saveState(); rebuildWorld();
+  toast('Review interval updated.');
+};
 $('btn-cam').onclick = openCamera;
 $('btn-cam-cancel').onclick = closeCamera;
 $('btn-capture').onclick = captureCell;
 $('btn-upload').onclick = ()=>$('file-input').click();
+$('btn-clear-photo').onclick = ()=>{
+  if(selectedIndex<0) return;
+  delete state.photos[selectedIndex];
+  textureCache.delete(selectedIndex);
+  saveState(); rebuildWorld(); refreshHifzPanel();
+};
 $('file-input').onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
   const img = new Image();
@@ -569,51 +974,45 @@ $('file-input').onchange = e=>{
   img.src = URL.createObjectURL(f);
   e.target.value = '';
 };
-$('height-slider').oninput = e=>{
-  $('h-val').textContent = (+e.target.value).toFixed(1);
-  if(selectedIndex>=0){
-    world.cells[selectedIndex].height = +e.target.value;
-    saveWorld(); rebuildWorld(); selectCell(selectedIndex);
+
+/* ---------- UI: pin ayah ---------- */
+$('btn-pin').onclick = async ()=>{
+  if(selectedIndex<0 || isJuzCell(selectedIndex)){
+    toast('Select a surah cell first.'); return;
   }
-};
-$('btn-clear').onclick = ()=>{
-  if(selectedIndex<0) return;
-  world.cells[selectedIndex] = defaultCell();
-  textureCache.delete(selectedIndex);
-  saveWorld(); rebuildWorld(); selectCell(selectedIndex);
-  toast('Cell cleared.');
-};
-$('btn-attach').onclick = async ()=>{
-  if(selectedIndex<0){ toast('Select a grid cell first.'); return; }
-  const s = +$('surah').value, a = +$('ayah').value;
-  if(!(s>=1&&s<=114) || !(a>=1)){ toast('Enter a valid surah and ayah number.'); return; }
+  const s = +$('pin-surah').value, a = +$('pin-ayah').value;
+  if(!(s>=1&&s<=114) || !(a>=1&&a<=surahs[s-1].ayahs)){
+    toast('Enter a valid surah and ayah number.'); return;
+  }
   toast('Fetching ayah…');
   try{
-    world.cells[selectedIndex].ayah = await fetchAyah(s,a);
-    saveWorld(); rebuildWorld(); refreshBuildPanel();
-    toast(`✨ Ayah ${s}:${a} linked to this cell.`);
-  }catch(err){
-    toast('⚠ Could not fetch ayah (check numbers / internet).');
-  }
+    state.pins[selectedIndex] = await fetchAyah(s,a);
+    saveState(); rebuildWorld(); refreshHifzPanel();
+    toast(`✨ ${s}:${a} pinned to this cell.`);
+  }catch(e){ toast('⚠ Could not fetch ayah (check numbers / internet).'); }
 };
 document.querySelectorAll('.pill').forEach(p=> p.onclick = ()=>{
-  $('surah').value = p.dataset.s; $('ayah').value = p.dataset.a;
-  $('btn-attach').click();
+  $('pin-surah').value = p.dataset.s; $('pin-ayah').value = p.dataset.a;
+  $('btn-pin').click();
 });
-$('btn-play').onclick = startPlay;
-$('btn-stop').onclick = endPlay;
+
+/* ---------- UI: world tab ---------- */
 $('btn-publish').onclick = ()=>{
-  world.version++;
-  world.cells.forEach(c=>{ c.visited=false; c.found=false; });
-  score = 0; endPlay();
-  saveWorld(); rebuildWorld(); refreshWorldTab();
-  toast(`🚀 World updated to v${world.version} — exploration reset, replay it!`);
+  state.version++;
+  saveState(); rebuildWorld();
+  toast(`🚀 World updated to v${state.version} — hifz progress kept.`);
+};
+$('btn-refresh-quran').onclick = async ()=>{
+  toast('Refreshing live Quran data…');
+  await loadSurahs(true);
+  rebuildWorld(); refreshHifzPanel();
+  toast('Quran map data refreshed.');
 };
 $('btn-export').onclick = ()=>{
-  const blob = new Blob([JSON.stringify(world)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify(state)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `quran-grid-world-v${world.version}.json`;
+  a.download = `hifz-grid-world-v${state.version}.json`;
   a.click(); URL.revokeObjectURL(a.href);
 };
 $('btn-import').onclick = ()=>$('import-input').click();
@@ -622,61 +1021,44 @@ $('import-input').onchange = e=>{
   const r = new FileReader();
   r.onload = ()=>{
     try{
-      const w = JSON.parse(r.result);
-      if(!w.cells || w.cells.length!==GRID*GRID) throw 0;
-      world = w; textureCache.clear();
-      saveWorld(); rebuildWorld(); refreshWorldTab(); refreshBuildPanel();
-      toast('World imported.');
-    }catch(_){ toast('⚠ Invalid world file.'); }
+      const s = JSON.parse(r.result);
+      if(!s.hifz) throw 0;
+      state = s; state.pins = s.pins||{}; state.photos = s.photos||{};
+      textureCache.clear();
+      saveState(); rebuildWorld(); refreshHifzPanel(); refreshQuizStatus();
+      toast('Progress imported.');
+    }catch(_){ toast('⚠ Invalid progress file.'); }
   };
   r.readAsText(f); e.target.value='';
 };
 $('btn-reset').onclick = ()=>{
-  if(!confirm('Reset the whole world? Photos and ayahs will be lost.')) return;
-  world = defaultWorld(); textureCache.clear();
-  saveWorld(); rebuildWorld(); refreshWorldTab();
-  toast('World reset to v1.');
+  if(!confirm('Reset everything (hifz progress, photos, pins)?')) return;
+  state = defaultState(); textureCache.clear();
+  saveState(); rebuildWorld(); refreshHifzPanel(); refreshQuizStatus();
+  toast('World reset.');
 };
-
-function refreshBuildPanel(){
-  if(selectedIndex<0){
-    $('selected-info').innerHTML = 'No cell selected — click one on the map.';
-    $('cell-ayah-info').innerHTML = '';
-    return;
-  }
-  const c = world.cells[selectedIndex];
-  const col = selectedIndex%GRID+1, row = Math.floor(selectedIndex/GRID)+1;
-  $('selected-info').innerHTML =
-    `Cell <b>${col}, ${row}</b> — ${c.photo?'📷 photo':'⬜ no photo'}, `+
-    `height <b>${c.height.toFixed(1)}</b>`;
-  $('cell-ayah-info').innerHTML = c.ayah
-    ? `Linked ayah: <b>${c.ayah.surah}:${c.ayah.ayah}</b> — “${c.ayah.translation.slice(0,90)}…”`
-    : 'No ayah linked to this cell yet.';
-}
-function refreshPlayStatus(){
-  $('play-status').innerHTML = playing
-    ? `▶ Running — score <b>${score}</b>, ayahs found `+
-      `<b>${world.cells.filter(c=>c.ayah&&c.found).length}/${world.cells.filter(c=>c.ayah).length}</b>`
-    : 'Game not running.';
-}
 function refreshWorldTab(){
-  $('ver').textContent = world.version;
-  $('next-ver').textContent = world.version+1;
-  const built = world.cells.filter(c=>c.height>0).length;
-  const ayahs = world.cells.filter(c=>c.ayah).length;
+  $('next-ver').textContent = state.version+1;
+  const m = totalMemorized();
+  const complete = surahs.filter((s,i)=>fracMemorized(i+1)>=1).length;
   $('world-info').innerHTML =
-    `Current: <b>v${world.version}</b> · ${built} built cells · ${ayahs} ayah links.<br>`+
-    `Auto-saved in this browser. Export before clearing browser data.`;
+    `Current: <b>v${state.version}</b> · <b>${m}</b> ayahs memorized `+
+    `(${(100*m/TOTAL_AYAHS).toFixed(2)}% of the Quran) · `+
+    `<b>${complete}</b>/114 surahs complete · `+
+    `<b>${Object.keys(state.pins).length}</b> ayah pins · `+
+    `<b>${Object.keys(state.photos).length}</b> memory-palace photos.`;
 }
+
+/* ---------- HUD ---------- */
 function refreshHud(){
-  $('ver').textContent = world.version;
-  $('cell-count').textContent = world.cells.filter(c=>c.height>0).length;
-  $('ayah-count').textContent = world.cells.filter(c=>c.ayah).length;
-  const total = world.cells.filter(c=>c.ayah).length;
-  const found = world.cells.filter(c=>c.ayah&&c.found).length;
-  $('score').textContent = score;
-  $('found').textContent = found;
-  $('total').textContent = total;
+  const m = totalMemorized();
+  const complete = surahs.filter((s,i)=>fracMemorized(i+1)>=1).length;
+  const due = dueSurahPool().length;
+  $('hud-stats').innerHTML =
+    `Live Quran map · <b>${m}</b>/${TOTAL_AYAHS} ayahs memorized `+
+    `(<b>${(100*m/TOTAL_AYAHS).toFixed(2)}%</b>)<br>`+
+    `${complete}/114 surahs complete · `+
+    `${due?`<span style="color:#d66"><b>${due}</b> due for review</span>`:'no reviews due'}`;
 }
 function toast(msg){
   const t = $('toast');
@@ -685,7 +1067,7 @@ function toast(msg){
   t._timer = setTimeout(()=>t.classList.remove('show'), 3200);
 }
 
-/* ---------------- input: orbit + pick + keys ---------------- */
+/* ---------- input: orbit / pick / keys ---------- */
 const raycaster = new THREE.Raycaster();
 let dragging=false, dragMoved=false, lastX=0, lastY=0;
 renderer.domElement.addEventListener('pointerdown', e=>{
@@ -699,23 +1081,22 @@ renderer.domElement.addEventListener('pointermove', e=>{
   lastX = e.clientX; lastY = e.clientY;
   updateCamera();
 });
-addEventListener('pointerup', e=>{
-  dragging = false;
-});
+addEventListener('pointerup', ()=>{ dragging = false; });
 renderer.domElement.addEventListener('click', e=>{
-  if(dragMoved) return;                       // it was a drag, not a click
+  if(dragMoved) return;
   const rect = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(
     ((e.clientX-rect.left)/rect.width)*2-1,
-    -((e.clientY-rect.top)/rect.height)*2+1
-  );
-  raycaster.setFromCamera(ndc, camera);
+    -((e.clientY-rect.top)/rect.height)*2+1);
+  raycaster.setFromCamera(ndc, camera3d);
   const hits = raycaster.intersectObject(ground);
   if(!hits.length) return;
   const p = hits[0].point;
-  const col = Math.floor(p.x + GRID/2), row = Math.floor(p.z + GRID/2);
-  if(col<0||col>=GRID||row<0||row>=GRID) return;
-  selectCell(row*GRID+col);
+  const col = Math.floor(p.x + GRID_W/2), row = Math.floor(p.z + GRID_H/2);
+  if(col<0||col>=GRID_W||row<0||row>=GRID_H) return;
+  const i = row*GRID_W+col;
+  if(quiz.active && quiz.awaitingAnswer){ submitAnswer(i, true); }
+  else { selectCell(i); if(!player.visible){ playerCell = i; placePlayerIfFirstMove(); } }
 });
 renderer.domElement.addEventListener('wheel', e=>{
   camDist *= 1 + Math.sign(e.deltaY)*0.08;
@@ -729,39 +1110,48 @@ addEventListener('keydown', e=>{
   else if(k==='s'||k==='arrowdown') tryMove(1,0);
   else if(k==='a'||k==='arrowleft') tryMove(0,-1);
   else if(k==='d'||k==='arrowright') tryMove(0,1);
+  else if(k==='enter' && quiz.active && quiz.awaitingAnswer)
+    submitAnswer(playerCell, false);
 });
 addEventListener('resize', ()=>{
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
+  camera3d.aspect = innerWidth/innerHeight;
+  camera3d.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
-/* ---------------- animation loop ---------------- */
+/* ---------- animation ---------- */
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
   gemGroup.children.forEach(g=>{
     g.rotation.y = t*1.2;
-    g.position.y = g.userData.baseY + Math.sin(t*2 + g.position.x*3)*0.08;
+    g.position.y = g.userData.baseY + Math.sin(t*2 + g.position.x*3)*0.07;
+  });
+  duePulseList.forEach(m=>{
+    m.emissiveIntensity = 0.55 + 0.45*Math.sin(t*4);
   });
   if(moving && moveTarget){
-    player.position.lerp(
-      new THREE.Vector3(moveTarget.x, moveTarget.y, moveTarget.z), 0.18);
+    player.position.lerp(moveTarget, 0.2);
     if(player.position.distanceTo(moveTarget) < 0.03){
       player.position.copy(moveTarget); moving=false; moveTarget=null;
-      markVisited(playerCell);
+      handleArrival();
     }
   }
-  if(player.visible) body.rotation.y = t*1.5;
-  renderer.render(scene, camera);
+  if(player.visible) pbody.rotation.y = t*1.5;
+  renderer.render(scene, camera3d);
 }
 
-/* ---------------- boot ---------------- */
-rebuildWorld();
-refreshWorldTab();
-refreshBuildPanel();
-animate();
+/* ---------- boot ---------- */
+(async function boot(){
+  await loadSurahs(false);
+  rebuildWorld();
+  placePlayer(0);
+  selectCell(0);
+  refreshHifzPanel(); refreshWorldTab(); refreshQuizStatus();
+  animate();
+  toast('📖 Live Quran map loaded — 114 surahs + 30 ajzā’. Click a cell to track hifz.');
+})();
 </script>
 </body>
 </html>

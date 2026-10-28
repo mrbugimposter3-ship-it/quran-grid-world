@@ -1,20 +1,37 @@
-# 🌍 Quran Grid World
+# 📖 Hifz Grid World
 
-Turn the real world into a 3D grid map with your camera, then explore it as a game where cells link to Quran ayahs.
+The Quran as a live 3D grid map — built for memorization (hifz). Scan real places with your camera into the map as memory-palace anchors, track every ayah you memorize, and play the **Audio Quest** game to strengthen recall.
 
-**▶ Play live:** https://mrbugimposter3-ship-it.github.io/quran-grid-world/
+**▶ Live:** https://mrbugimposter3-ship-it.github.io/quran-grid-world/
 
-## How it works
+## The grid mapping algorithm
 
-1. **🔨 Build** — click a cell in the 3D grid world, capture a real place with your camera (or upload a photo), and set its height. Each photo fills one grid cell — scan your street, room, park, cell by cell.
-2. **✨ Ayah links** — attach any surah:ayah to a cell. Arabic text + translation load from the [Quran API](https://alquran.cloud), with audio recitation and a [quran.com](https://quran.com) deep link.
-3. **🎮 Play** — explore the world you built (WASD / arrow keys). New cells = +10 pts, finding a golden ayah gem = +50 pts and reveals the verse.
-4. **🚀 Publish update** — bumps the world version, keeps your photos & ayahs, resets exploration, so every scan creates a fresh game. World auto-saves in your browser and can be exported/imported as JSON.
+The 12×12 grid (144 cells) maps the whole Quran, fetched live from the [Quran API](https://alquran.cloud) (with a built-in offline fallback — all 114 surahs, 6236 ayahs, 30 ajzā'):
+
+```
+cell index i (row-major)
+  i < 114  →  surah (i + 1)     · height = log scale of ayah count (Al-Baqarah towers over Al-Kawthar)
+  i ≥ 114  →  juz (i − 113)      · height = memorization progress of that juz
+```
+
+- **Cell color** = memorization progress (slate → green). Fully memorized surahs turn bright green.
+- **Pulsing red** = surah due for spaced-repetition review.
+- **Side colors** = Makki (cool blue) vs Madani (warm) vs juz (gold).
+- **Floating gems** = pinned ayah links (text, translation, audio, quran.com deep link).
+
+## Hifz features
+
+- **Per-ayah tracking** — click a surah, tap ayah numbers to toggle memorized. Overall progress shown as % of the Quran.
+- **Spaced repetition** — strength 1–5 per surah with review intervals (2/4/7/15/30 days). "Reviewed today" resets the timer.
+- **🎧 Audio Quest game** — the app plays (or shows the translation of) an ayah from your hifz; walk across the 3D Quran map to the correct surah. Correct answers extend the review interval, wrong ones shorten it. Streaks, points, and a best score.
+- **Memory palace** — use your camera to attach a real place (prayer spot, masjid…) to each surah cell, so the map becomes a personal journey of places and verses.
+- **Ayah pins** — pin any surah:ayah to a cell with a gem marker, full verse popup with recitation audio and quran.com link.
+- **Publish updates** — bump the world version anytime; hifz progress, photos and pins are kept. Auto-saves in the browser + JSON export/import.
 
 ## Tech
 
-Single-file web app: Three.js for the 3D grid, `getUserMedia` for camera scanning, alquran.cloud API for verses, localStorage + JSON export/import for world persistence. Runs entirely client-side — great for GitHub Pages.
+Single-file web app: Three.js 3D grid, `getUserMedia` camera capture, alquran.cloud live metadata + verse API (quran-uthmani, en.sahih), islamic.network recitation audio, localStorage persistence. Runs entirely client-side on GitHub Pages.
 
 ## Run locally
 
-Just open `index.html` in a browser. Camera + ayah fetching need internet; GitHub Pages provides the HTTPS required for camera access.
+Open `index.html` in a browser (internet needed for live data, verses, and camera permission requires HTTPS — which GitHub Pages provides).
