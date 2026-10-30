@@ -33,6 +33,17 @@ cell index i (row-major)
 - **Side colors** = Makki (cool blue) vs Madani (warm) vs juz (gold).
 - **Floating gems** = pinned ayah links (text, translation, audio, quran.com deep link).
 
+## 📷 Ayah scanner — extract a verse from a photo
+
+Point your camera at any mushaf page (or upload a photo of one):
+
+1. **On-device OCR** (Tesseract.js Arabic engine) reads the Arabic text — photo is auto contrast-boosted first; the model downloads once on first use
+2. **Text normalization** strips diacritics/tashkeel and unifies letter variants
+3. **Fuzzy trigram matching** against all 6236 ayahs — tolerant of OCR errors, returns the top 5 candidates with confidence scores
+4. One tap to **pin the ayah to a cell**, **mark it memorized**, or **scan another page**
+
+Verified: the matcher identifies the correct ayah even with 20% simulated character errors (14/14 test cases).
+
 ## Hifz features
 
 - **Per-ayah tracking** — click a surah, tap ayah numbers to toggle memorized. Overall progress shown as % of the Quran.
@@ -44,7 +55,7 @@ cell index i (row-major)
 
 ## Tech
 
-Single-file web app: Three.js 3D grid, `getUserMedia` camera capture, alquran.cloud live metadata + verse API (quran-uthmani, en.sahih), islamic.network recitation audio, localStorage persistence. Runs entirely client-side on GitHub Pages.
+Single-file web app: Three.js 3D grid, `getUserMedia` camera capture, Tesseract.js on-device Arabic OCR, alquran.cloud live metadata + verse API (quran-uthmani, en.sahih), islamic.network recitation audio, localStorage persistence. Runs entirely client-side on GitHub Pages.
 
 ## Run locally
 

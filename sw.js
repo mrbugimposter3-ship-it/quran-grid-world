@@ -1,8 +1,9 @@
 /* Hifz Grid World — offline app shell service worker.
    Caches the app shell + three.js so the app opens offline.
    Quran API / audio requests pass straight through to the network. */
-const CACHE = 'hifz-grid-world-v1';
+const CACHE = 'hifz-grid-world-v2';
 const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+const CDN2 = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -10,7 +11,7 @@ self.addEventListener('install', e => {
       './', './index.html', './manifest.webmanifest',
       './icons/icon-192.png', './icons/icon-512.png',
       './icons/maskable-512.png', './icons/apple-touch-icon.png',
-      CDN
+      CDN, CDN2
     ])).then(() => self.skipWaiting())
   );
 });
@@ -32,7 +33,7 @@ self.addEventListener('fetch', e => {
     u.pathname.endsWith('.webmanifest') ||
     u.pathname.includes('/icons/')
   );
-  if (!shell && u.href !== CDN) return;          // dynamic APIs/audio: network only
+  if (!shell && u.href !== CDN && u.href !== CDN2) return;   // dynamic APIs/audio: network only
   e.respondWith(
     caches.match(e.request).then(hit => hit ||
       fetch(e.request).then(res => {
